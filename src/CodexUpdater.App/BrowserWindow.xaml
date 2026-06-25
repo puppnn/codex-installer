@@ -1,0 +1,36 @@
+<Window x:Class="CodexUpdater.App.BrowserWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="rg-adguard 链接浏览器"
+        Width="820"
+        Height="640"
+        MinWidth="720"
+        MinHeight="520"
+        Background="#101417"
+        FontFamily="Microsoft YaHei UI, Segoe UI">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="42" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Border Background="#182024"
+                Padding="14,0">
+            <DockPanel LastChildFill="True">
+                <TextBlock Text="rg-adguard 链接生成器"
+                           VerticalAlignment="Center"
+                           Foreground="#E6ECE6"
+                           FontWeight="SemiBold" />
+                <TextBlock x:Name="HintText"
+                           DockPanel.Dock="Right"
+                           Text="如果出现验证，请在这里完成"
+                           VerticalAlignment="Center"
+                           Foreground="#9EABA5"
+                           FontSize="12" />
+            </DockPanel>
+        </Border>
+        <wv2:WebView2 x:Name="Browser"
+                      Grid.Row="1"
+                      DefaultBackgroundColor="#0F1417" />
+    </Grid>
+</Window>
