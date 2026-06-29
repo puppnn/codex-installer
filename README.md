@@ -41,7 +41,7 @@ Add-AppxPackage -Path "下载到的 MSIX 文件路径"
 
 1. 下载 Release 里的 `CodexInstaller-win-x64.zip`。
 2. 解压后运行 `CodexUpdater.App.exe`。
-3. 选择下载位置。
+3. 选择安装包下载位置。
 4. 保持默认 `x64`，除非你的电脑是 ARM64。
 5. 点击 `检查更新`。
 6. 如果弹出 `rg-adguard 链接浏览器` 并出现验证，请在弹窗内完成验证。

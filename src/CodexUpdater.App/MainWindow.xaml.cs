@@ -68,7 +68,7 @@ public partial class MainWindow : Window
         _settings = _settings with { DownloadDirectory = dialog.SelectedPath };
         _settings.Save();
         UpdateDownloadDirectoryText();
-        SetStatus($"下载位置已设置为：{_settings.DownloadDirectory}");
+        SetStatus($"安装包下载位置已设置为：{_settings.DownloadDirectory}");
     }
 
     private void ArchitectureRadio_Checked(object sender, RoutedEventArgs e)

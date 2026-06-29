@@ -121,7 +121,7 @@
                         <ColumnDefinition Width="128" />
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0">
-                        <TextBlock Text="下载位置"
+                        <TextBlock Text="安装包下载位置"
                                    FontWeight="SemiBold"
                                    FontSize="13"
                                    Foreground="{StaticResource MutedBrush}" />
