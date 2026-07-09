@@ -9,7 +9,7 @@ namespace CodexUpdater.App;
 public partial class MainWindow : Window
 {
     private readonly AppCommandLine _commandLine;
-    private readonly BrowserWindow _browserWindow;
+    private BrowserWindow? _browserWindow;
     private UserSettings _settings;
     private InstalledCodex? _installedCodex;
     private PackageCandidate? _candidate;
@@ -19,7 +19,6 @@ public partial class MainWindow : Window
     {
         _commandLine = commandLine;
         _settings = UserSettings.Load();
-        _browserWindow = new BrowserWindow();
         InitializeComponent();
         Loaded += MainWindow_Loaded;
         Closed += MainWindow_Closed;
@@ -45,7 +44,7 @@ public partial class MainWindow : Window
 
     private void MainWindow_Closed(object? sender, EventArgs e)
     {
-        _browserWindow.CloseForShutdown();
+        _browserWindow?.CloseForShutdown();
     }
 
     private void ChooseDownloadFolderButton_Click(object sender, RoutedEventArgs e)
@@ -129,10 +128,11 @@ public partial class MainWindow : Window
             CandidateUrlText.Text = "";
             ComparisonText.Text = "正在等待远程版本信息...";
 
-            await _browserWindow.EnsureReadyAsync(this);
-            _browserWindow.ShowForAttention("正在生成链接");
+            var browserWindow = await GetBrowserWindowAsync();
+            await browserWindow.EnsureReadyAsync(this);
+            browserWindow.ShowForAttention("正在生成链接");
             var candidate = await GenerateCandidateFromBrowserAsync();
-            _browserWindow.HideAfterSuccess();
+            browserWindow.HideAfterSuccess();
 
             _candidate = candidate;
             CandidateText.Text = candidate.FileName;
@@ -150,7 +150,8 @@ public partial class MainWindow : Window
 
         while (DateTimeOffset.UtcNow < deadline)
         {
-            var links = await _browserWindow.ExtractLinksAsync();
+            var browserWindow = await GetBrowserWindowAsync();
+            var links = await browserWindow.ExtractLinksAsync();
             var candidate = CodexPackage.SelectNewest(links, targetArchitecture);
             if (candidate is not null)
             {
@@ -159,7 +160,7 @@ public partial class MainWindow : Window
 
             if (!submitted)
             {
-                var state = await _browserWindow.FillAndSubmitRgAdguardAsync();
+                var state = await browserWindow.FillAndSubmitRgAdguardAsync();
                 if (state == "submitted")
                 {
                     submitted = true;
@@ -167,7 +168,7 @@ public partial class MainWindow : Window
                 }
                 else if (state == "challenge")
                 {
-                    _browserWindow.ShowForAttention("请在这里完成验证");
+                    browserWindow.ShowForAttention("请在这里完成验证");
                     SetStatus("rg-adguard 正在显示验证页。请在链接浏览器弹窗中完成验证，工具会继续等待。");
                 }
                 else
@@ -184,6 +185,13 @@ public partial class MainWindow : Window
         }
 
         throw new TimeoutException($"没有在 rg-adguard 页面中找到 OpenAI.Codex {targetArchitecture} MSIX 链接。");
+    }
+
+    private async Task<BrowserWindow> GetBrowserWindowAsync()
+    {
+        await WebView2RuntimeService.EnsureInstalledAsync(this);
+        _browserWindow ??= new BrowserWindow();
+        return _browserWindow;
     }
 
     private async void DownloadButton_Click(object sender, RoutedEventArgs e)

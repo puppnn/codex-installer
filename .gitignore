@@ -3,4 +3,5 @@ obj/
 publish/
 publish-exe/
 dist/
+src/CodexUpdater.App/Vendor/*.exe
 *.user
