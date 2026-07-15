@@ -6,6 +6,7 @@ public static partial class CodexPackage
 {
     public const string ProductId = "9PLM9XGG6VKS";
     public const string PackagePrefix = "OpenAI.Codex";
+    public const string Publisher = "CN=50BDFD77-8903-4850-9FFE-6E8522F64D5B";
     public const string PublisherId = "2p2nqsd0c76g0";
     public const string DefaultArchitecture = "x64";
     public const string RgAdguardUrl = "https://store.rg-adguard.net/";
@@ -66,18 +67,59 @@ public static partial class CodexPackage
             .FirstOrDefault();
     }
 
+    public static bool IsTrustedDownloadUrl(string url)
+    {
+        return Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+            uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) &&
+            string.IsNullOrEmpty(uri.UserInfo) &&
+            IsTrustedMicrosoftHost(uri.IdnHost);
+    }
+
+    public static bool TryNormalizeTrustedDownloadUrl(string url, out string normalizedUrl)
+    {
+        normalizedUrl = "";
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
+            !string.IsNullOrEmpty(uri.UserInfo) ||
+            !IsTrustedMicrosoftHost(uri.IdnHost) ||
+            (!uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) &&
+             !uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        var builder = new UriBuilder(uri)
+        {
+            Scheme = Uri.UriSchemeHttps,
+            Port = -1,
+        };
+        normalizedUrl = builder.Uri.AbsoluteUri;
+        return true;
+    }
+
     private static IEnumerable<PackageCandidate> ParseLink(PackageLink link, string targetArchitecture)
     {
-        if (TryParse(link.Text, link.Href, targetArchitecture, out var fromText))
+        if (!TryNormalizeTrustedDownloadUrl(link.Href, out var trustedUrl))
+        {
+            yield break;
+        }
+
+        if (TryParse(link.Text, trustedUrl, targetArchitecture, out var fromText))
         {
             yield return fromText;
         }
 
         if (!string.Equals(link.Text, link.Href, StringComparison.Ordinal) &&
-            TryParse(link.Href, link.Href, targetArchitecture, out var fromHref))
+            TryParse(trustedUrl, trustedUrl, targetArchitecture, out var fromHref))
         {
             yield return fromHref;
         }
+    }
+
+    private static bool IsTrustedMicrosoftHost(string host)
+    {
+        var normalizedHost = host.TrimEnd('.');
+        return normalizedHost.Equals("delivery.mp.microsoft.com", StringComparison.OrdinalIgnoreCase) ||
+            normalizedHost.EndsWith(".delivery.mp.microsoft.com", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string ExtractFileName(string fileNameOrUrl)

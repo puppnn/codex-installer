@@ -9,9 +9,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Vendor\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
-                      LogicalName="MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
-                      Condition="Exists('Vendor\MicrosoftEdgeWebView2RuntimeInstallerX64.exe')" />
+    <EmbeddedResource Include="Vendor\MicrosoftEdgeWebview2Setup.exe"
+                      LogicalName="MicrosoftEdgeWebview2Setup.exe"
+                      Condition="Exists('Vendor\MicrosoftEdgeWebview2Setup.exe')" />
   </ItemGroup>
 
   <PropertyGroup>

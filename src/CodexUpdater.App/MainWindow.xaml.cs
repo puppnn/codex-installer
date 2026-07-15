@@ -226,7 +226,7 @@ public partial class MainWindow : Window
         await RunUiActionAsync(async () =>
         {
             var targetArchitecture = GetSelectedArchitecture();
-            ValidatePackageBeforeInstall(packagePath, targetArchitecture);
+            using var packageLock = OpenAndValidatePackageBeforeInstall(packagePath, targetArchitecture);
 
             var runningCodex = CodexSystemService.FindRunningCodexProcesses();
             if (runningCodex.Count > 0)
@@ -245,14 +245,6 @@ public partial class MainWindow : Window
 
                 SetStatus("正在关闭 Codex...");
                 await CodexSystemService.CloseCodexAsync(runningCodex);
-            }
-
-            if (!Elevation.IsAdministrator())
-            {
-                SetStatus("需要管理员权限，正在请求 UAC...");
-                Elevation.RelaunchElevatedForInstall(packagePath, targetArchitecture);
-                System.Windows.Application.Current.Shutdown();
-                return;
             }
 
             Progress.Value = 0;
@@ -310,10 +302,12 @@ public partial class MainWindow : Window
         }
     }
 
-    private static void ValidatePackageBeforeInstall(string packagePath, string targetArchitecture)
+    private static FileStream OpenAndValidatePackageBeforeInstall(
+        string packagePath,
+        string targetArchitecture)
     {
         var fileName = Path.GetFileName(packagePath);
-        if (!CodexPackage.IsExpectedFileName(fileName, targetArchitecture))
+        if (!CodexPackage.TryParse(fileName, packagePath, targetArchitecture, out var candidate))
         {
             throw new InvalidOperationException($"安装包名称不是 OpenAI.Codex {targetArchitecture} MSIX。");
         }
@@ -322,6 +316,23 @@ public partial class MainWindow : Window
         if (!file.Exists || file.Length == 0)
         {
             throw new FileNotFoundException("安装包不存在或为空。", packagePath);
+        }
+
+        var packageLock = new FileStream(
+            packagePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read);
+        try
+        {
+            WindowsTrustVerifier.EnsureValidSignature(packagePath);
+            MsixPackageInspector.ValidateCodexPackage(packagePath, candidate, targetArchitecture);
+            return packageLock;
+        }
+        catch
+        {
+            packageLock.Dispose();
+            throw;
         }
     }
 

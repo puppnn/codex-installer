@@ -1,5 +1,6 @@
 bin/
 obj/
+.codegraph/
 publish/
 publish-exe/
 dist/

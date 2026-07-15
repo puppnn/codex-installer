@@ -2,13 +2,25 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\CodexUpdater.Core\CodexUpdater.Core.csproj" />
+    <ProjectReference Include="..\..\src\CodexUpdater.App\CodexUpdater.App.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
   </ItemGroup>
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
   </PropertyGroup>
 
 </Project>

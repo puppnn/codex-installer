@@ -4,6 +4,9 @@
 
 Codex Installer is a Windows helper for installing or updating the OpenAI Codex desktop app when Microsoft Store cannot download it normally.
 
+> 本项目是第三方社区工具，不是 OpenAI 或 Microsoft 官方安装器。
+> This is an independent community tool, not an official OpenAI or Microsoft installer.
+
 ![Codex Installer main window](docs/assets/app-main-clean.png)
 
 ## 解决的问题 / Problem
@@ -29,7 +32,7 @@ This tool bypasses the Microsoft Store app UI and installs the Codex `.msix` pac
    - 自动忽略 `.BlockMap`
 5. 下载 `OpenAI.Codex_..._x64...msix` 或 `OpenAI.Codex_..._arm64...msix`。
 6. 安装前校验包名、架构、扩展名和文件大小。
-7. 使用管理员权限执行：
+7. 使用当前 Windows 用户执行：
 
 ```powershell
 Add-AppxPackage -Path "下载到的 MSIX 文件路径"
@@ -39,15 +42,15 @@ Add-AppxPackage -Path "下载到的 MSIX 文件路径"
 
 ## 使用说明 / Usage
 
-1. 下载 Release 里的 `CodexInstaller-win-x64.zip`。
-2. 解压后运行 `CodexUpdater.App.exe`。
+1. 下载 Release 里的 `CodexInstaller-win-x64.exe` 并运行。
+2. 如果电脑缺少 WebView2，工具会启动内置的微软 Evergreen Bootstrapper 联网安装。
 3. 选择安装包下载位置。
 4. 保持默认 `x64`，除非你的电脑是 ARM64。
 5. 点击 `检查更新`。
 6. 如果弹出 `rg-adguard 链接浏览器` 并出现验证，请在弹窗内完成验证。
 7. 点击 `下载 MSIX`。
 8. 点击 `安装 / 更新 Codex`。
-9. 按提示同意 UAC 管理员权限。
+9. 安装在当前 Windows 用户下完成，不需要主动以管理员身份运行本工具。
 
 ## Version Comparison
 
@@ -64,7 +67,7 @@ Requirements:
 
 - Windows
 - .NET SDK 10
-- Microsoft Edge WebView2 Runtime
+- 网络连接（首次缺少 WebView2 Runtime 时需要从微软下载）
 
 Build and publish:
 
@@ -74,16 +77,17 @@ Build and publish:
 
 The framework-dependent output is written to `publish\`.
 
-For a release package:
+For the self-contained release EXE with the pinned Microsoft WebView2 Bootstrapper:
 
 ```powershell
-dotnet publish .\src\CodexUpdater.App\CodexUpdater.App.csproj -c Release -r win-x64 --self-contained true -o .\dist\CodexInstaller-win-x64
-Compress-Archive -Path .\dist\CodexInstaller-win-x64\* -DestinationPath .\dist\CodexInstaller-win-x64.zip -Force
+.\build-full.ps1
 ```
 
 ## Notes
 
 - This project does not modify Microsoft Store itself.
 - The generated package links come from Microsoft Store delivery links exposed through `store.rg-adguard.net`.
+- Only HTTPS package URLs under Microsoft `delivery.mp.microsoft.com` are downloaded.
+- Every downloaded MSIX must pass Windows signature validation and match the expected `OpenAI.Codex` Manifest identity, publisher, version, and architecture.
 - Only packages matching `OpenAI.Codex` and the selected architecture are accepted.
 - The download folder setting is stored in `%LOCALAPPDATA%\CodexUpdater\settings.json`.

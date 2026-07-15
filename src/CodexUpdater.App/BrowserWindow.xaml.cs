@@ -93,7 +93,7 @@ public partial class BrowserWindow : Window
 
               setSelect(selects[0], "ProductId");
               setValue(textInput, "9PLM9XGG6VKS");
-              if (selects.length > 1) setSelect(selects[1], "RP");
+              if (selects.length > 1) setSelect(selects[1], "Retail");
 
               const controls = Array.from(document.querySelectorAll("button,input[type=submit],input[type=button]"));
               const submit = controls.find(control => {

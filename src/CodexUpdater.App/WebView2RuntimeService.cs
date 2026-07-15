@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Security.Cryptography;
 using System.Reflection;
 using System.Windows;
 using Microsoft.Web.WebView2.Core;
@@ -8,7 +9,9 @@ namespace CodexUpdater.App;
 
 internal static class WebView2RuntimeService
 {
-    private const string EmbeddedInstallerName = "MicrosoftEdgeWebView2RuntimeInstallerX64.exe";
+    private const string EmbeddedInstallerName = "MicrosoftEdgeWebview2Setup.exe";
+    private const string EmbeddedInstallerSha256 =
+        "F91077E2C116DCF6377E555D0D4A3A564D242351AD6718B6954658D4F74819C1";
     private const string DownloadPageUrl = "https://developer.microsoft.com/microsoft-edge/webview2/";
 
     public static bool IsRuntimeAvailable()
@@ -31,7 +34,7 @@ internal static class WebView2RuntimeService
         }
 
         var answer = System.Windows.MessageBox.Show(
-            "当前电脑缺少 Microsoft Edge WebView2 Runtime，无法打开内置链接浏览器。\n\n是否现在安装内置的 WebView2 Runtime？安装时可能会弹出管理员权限确认。",
+            "当前电脑缺少 Microsoft Edge WebView2 Runtime，无法打开内置链接浏览器。\n\n是否现在通过微软官方安装程序联网安装？",
             "需要安装 WebView2 Runtime",
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning);
@@ -41,14 +44,22 @@ internal static class WebView2RuntimeService
             throw new InvalidOperationException("缺少 Microsoft Edge WebView2 Runtime。请安装后重新运行本工具。");
         }
 
-        var installerPath = ExtractEmbeddedInstaller();
-        var exitCode = await RunInstallerAsync(installerPath);
-        if (exitCode != 0 && exitCode != 3010)
+        var extractedInstaller = ExtractEmbeddedInstaller();
+        try
         {
-            throw new InvalidOperationException($"WebView2 Runtime 安装失败，安装器退出代码：{exitCode}");
+            using var installerLock = OpenAndVerifyEmbeddedInstaller(extractedInstaller.FilePath);
+            var exitCode = await RunInstallerAsync(extractedInstaller.FilePath);
+            if (exitCode != 0 && exitCode != 3010)
+            {
+                throw new InvalidOperationException($"WebView2 Runtime 安装失败，安装器退出代码：{exitCode}");
+            }
+        }
+        finally
+        {
+            TryDeleteDirectory(extractedInstaller.DirectoryPath);
         }
 
-        if (!IsRuntimeAvailable())
+        if (!await WaitForRuntimeAsync())
         {
             throw new InvalidOperationException(
                 $"WebView2 Runtime 安装后仍不可用。请手动从微软官方下载并安装：{DownloadPageUrl}");
@@ -62,7 +73,7 @@ internal static class WebView2RuntimeService
             MessageBoxImage.Information);
     }
 
-    private static string ExtractEmbeddedInstaller()
+    private static ExtractedInstaller ExtractEmbeddedInstaller()
     {
         var assembly = Assembly.GetExecutingAssembly();
         using var stream = assembly.GetManifestResourceStream(EmbeddedInstallerName);
@@ -72,16 +83,46 @@ internal static class WebView2RuntimeService
                 $"当前 exe 未内置 WebView2 Runtime 安装器。请从微软官方下载并安装：{DownloadPageUrl}");
         }
 
-        var directory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "CodexUpdater",
-            "Runtime");
+        var directory = Path.Combine(Path.GetTempPath(), "CodexUpdater", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
 
         var installerPath = Path.Combine(directory, EmbeddedInstallerName);
-        using var file = File.Create(installerPath);
+        using var file = new FileStream(
+            installerPath,
+            FileMode.CreateNew,
+            FileAccess.Write,
+            FileShare.Read,
+            bufferSize: 1024 * 128,
+            FileOptions.WriteThrough);
         stream.CopyTo(file);
-        return installerPath;
+        file.Flush(flushToDisk: true);
+        return new ExtractedInstaller(directory, installerPath);
+    }
+
+    private static FileStream OpenAndVerifyEmbeddedInstaller(string installerPath)
+    {
+        var stream = new FileStream(
+            installerPath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read);
+        try
+        {
+            var actualHash = Convert.ToHexString(SHA256.HashData(stream));
+            if (!actualHash.Equals(EmbeddedInstallerSha256, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("内置 WebView2 安装器哈希校验失败，已停止运行。");
+            }
+
+            WindowsTrustVerifier.EnsureValidSignature(installerPath);
+            WindowsTrustVerifier.EnsurePeSigner(installerPath, "Microsoft Corporation");
+            return stream;
+        }
+        catch
+        {
+            stream.Dispose();
+            throw;
+        }
     }
 
     private static async Task<int> RunInstallerAsync(string installerPath)
@@ -90,17 +131,44 @@ internal static class WebView2RuntimeService
         {
             FileName = installerPath,
             Arguments = "/silent /install",
-            UseShellExecute = true,
+            WorkingDirectory = Path.GetDirectoryName(installerPath)!,
+            UseShellExecute = false,
+            CreateNoWindow = true,
         };
-
-        if (!Elevation.IsAdministrator())
-        {
-            startInfo.Verb = "runas";
-        }
 
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("无法启动 WebView2 Runtime 安装器。");
         await process.WaitForExitAsync();
         return process.ExitCode;
     }
+
+    private static async Task<bool> WaitForRuntimeAsync()
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(30);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (IsRuntimeAvailable())
+            {
+                return true;
+            }
+
+            await Task.Delay(500);
+        }
+
+        return IsRuntimeAvailable();
+    }
+
+    private static void TryDeleteDirectory(string directoryPath)
+    {
+        try
+        {
+            Directory.Delete(directoryPath, recursive: true);
+        }
+        catch
+        {
+            // The temporary installer can be removed by the OS if setup still holds a file handle.
+        }
+    }
+
+    private sealed record ExtractedInstaller(string DirectoryPath, string FilePath);
 }
