@@ -13,7 +13,7 @@ Codex Installer is a Windows helper for installing or updating the OpenAI Codex 
 
 适用于 Windows 10/11 x64，无需进入 Releases 页面。其他发布文件和校验信息可在 [Releases](https://github.com/puppnn/codex-installer/releases/latest) 中查看。
 
-![Codex Installer main window](docs/assets/app-main-clean.png)
+![Codex Installer main window with advanced options](docs/assets/app-main-v1.1.0.png)
 
 ## 解决的问题 / Problem
 
