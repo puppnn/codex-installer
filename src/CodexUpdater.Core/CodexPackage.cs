@@ -70,8 +70,8 @@ public static partial class CodexPackage
     public static bool IsTrustedDownloadUrl(string url)
     {
         return Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
-            uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) &&
             string.IsNullOrEmpty(uri.UserInfo) &&
+            IsSupportedDownloadSchemeAndPort(uri) &&
             IsTrustedMicrosoftHost(uri.IdnHost);
     }
 
@@ -81,15 +81,13 @@ public static partial class CodexPackage
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
             !string.IsNullOrEmpty(uri.UserInfo) ||
             !IsTrustedMicrosoftHost(uri.IdnHost) ||
-            (!uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) &&
-             !uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)))
+            !IsSupportedDownloadSchemeAndPort(uri))
         {
             return false;
         }
 
         var builder = new UriBuilder(uri)
         {
-            Scheme = Uri.UriSchemeHttps,
             Port = -1,
         };
         normalizedUrl = builder.Uri.AbsoluteUri;
@@ -105,14 +103,22 @@ public static partial class CodexPackage
 
         if (TryParse(link.Text, trustedUrl, targetArchitecture, out var fromText))
         {
-            yield return fromText;
+            yield return fromText with { PageHash = NormalizePageHash(link.PageHash) };
         }
 
         if (!string.Equals(link.Text, link.Href, StringComparison.Ordinal) &&
             TryParse(trustedUrl, trustedUrl, targetArchitecture, out var fromHref))
         {
-            yield return fromHref;
+            yield return fromHref with { PageHash = NormalizePageHash(link.PageHash) };
         }
+    }
+
+    private static string? NormalizePageHash(string? pageHash)
+    {
+        var value = pageHash?.Trim();
+        return value is { Length: 40 or 64 } && value.All(Uri.IsHexDigit)
+            ? value.ToUpperInvariant()
+            : null;
     }
 
     private static bool IsTrustedMicrosoftHost(string host)
@@ -120,6 +126,14 @@ public static partial class CodexPackage
         var normalizedHost = host.TrimEnd('.');
         return normalizedHost.Equals("delivery.mp.microsoft.com", StringComparison.OrdinalIgnoreCase) ||
             normalizedHost.EndsWith(".delivery.mp.microsoft.com", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSupportedDownloadSchemeAndPort(Uri uri)
+    {
+        return uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+            ? uri.IsDefaultPort || uri.Port == 443
+            : uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) &&
+              (uri.IsDefaultPort || uri.Port == 80);
     }
 
     private static string ExtractFileName(string fileNameOrUrl)
@@ -148,6 +162,7 @@ public sealed record PackageCandidate(
     string FileName,
     string Url,
     Version Version,
-    string Architecture);
+    string Architecture,
+    string? PageHash = null);
 
-public sealed record PackageLink(string Href, string Text);
+public sealed record PackageLink(string Href, string Text, string? PageHash = null);

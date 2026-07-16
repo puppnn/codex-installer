@@ -26,8 +26,11 @@ if ($signature.Status -ne "Valid" -or
     throw "WebView2 Bootstrapper does not have a valid Microsoft signature."
 }
 
-dotnet build .\CodexUpdater.sln
-dotnet test .\tests\CodexUpdater.Tests\CodexUpdater.Tests.csproj
+dotnet format .\CodexUpdater.sln --verify-no-changes --no-restore
+dotnet build .\CodexUpdater.sln -c Release --no-restore -warnaserror
+dotnet test .\tests\CodexUpdater.Tests\CodexUpdater.Tests.csproj `
+    -c Release `
+    --no-build
 
 if (Test-Path -LiteralPath .\publish-exe) {
     Remove-Item -LiteralPath .\publish-exe -Recurse -Force

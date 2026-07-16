@@ -47,6 +47,18 @@ public partial class MainWindow : Window
         _browserWindow?.CloseForShutdown();
     }
 
+    private void AdvancedOptionsButton_Click(object sender, RoutedEventArgs e)
+    {
+        var window = new AdvancedStoreWindow
+        {
+            Owner = this,
+        };
+        window.ShowDialog();
+
+        _settings = UserSettings.Load();
+        UpdateDownloadDirectoryText();
+    }
+
     private void ChooseDownloadFolderButton_Click(object sender, RoutedEventArgs e)
     {
         using var dialog = new WinForms.FolderBrowserDialog
@@ -111,7 +123,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             InstalledVersionText.Text = "读取失败";
-            InstalledPackageText.Text = ex.Message;
+            InstalledPackageText.Text = ExceptionMessageFormatter.Format(ex);
         }
     }
 
@@ -119,32 +131,45 @@ public partial class MainWindow : Window
     {
         await RunUiActionAsync(async () =>
         {
-            _candidate = null;
-            _downloadedPackagePath = null;
-            InstallButton.IsEnabled = false;
-            DownloadButton.IsEnabled = false;
-            Progress.Value = 0;
-            CandidateText.Text = "正在生成临时链接...";
-            CandidateUrlText.Text = "";
-            ComparisonText.Text = "正在等待远程版本信息...";
+            var progressWindow = new RgAdguardProgressWindow
+            {
+                Owner = this,
+            };
+            progressWindow.Show();
+            try
+            {
+                _candidate = null;
+                _downloadedPackagePath = null;
+                InstallButton.IsEnabled = false;
+                DownloadButton.IsEnabled = false;
+                Progress.Value = 0;
+                CandidateText.Text = "正在生成临时链接...";
+                CandidateUrlText.Text = "";
+                ComparisonText.Text = "正在等待远程版本信息...";
 
-            var browserWindow = await GetBrowserWindowAsync();
-            await browserWindow.EnsureReadyAsync(this);
-            browserWindow.ShowForAttention("正在生成链接");
-            var candidate = await GenerateCandidateFromBrowserAsync();
-            browserWindow.HideAfterSuccess();
+                var browserWindow = await GetBrowserWindowAsync();
+                await browserWindow.EnsureReadyAsync(this);
+                browserWindow.HideAfterSuccess();
+                var candidate = await GenerateCandidateFromBrowserAsync();
+                browserWindow.HideAfterSuccess();
 
-            _candidate = candidate;
-            CandidateText.Text = candidate.FileName;
-            CandidateUrlText.Text = $"远程版本 {candidate.Version} - {candidate.Architecture}";
-            UpdateVersionComparison(candidate);
-            DownloadButton.IsEnabled = true;
+                _candidate = candidate;
+                CandidateText.Text = candidate.FileName;
+                CandidateUrlText.Text = $"远程版本 {candidate.Version} - {candidate.Architecture}";
+                UpdateVersionComparison(candidate);
+                DownloadButton.IsEnabled = true;
+            }
+            finally
+            {
+                progressWindow.Close();
+            }
         });
     }
 
     private async Task<PackageCandidate> GenerateCandidateFromBrowserAsync()
     {
         var submitted = false;
+        var unresolvedAttempts = 0;
         var deadline = DateTimeOffset.UtcNow.AddMinutes(4);
         var targetArchitecture = GetSelectedArchitecture();
 
@@ -157,13 +182,15 @@ public partial class MainWindow : Window
             {
                 return candidate;
             }
+            unresolvedAttempts++;
 
             if (!submitted)
             {
-                var state = await browserWindow.FillAndSubmitRgAdguardAsync();
+                var state = await browserWindow.FillAndSubmitRgAdguardAsync(CodexPackage.ProductId);
                 if (state == "submitted")
                 {
                     submitted = true;
+                    unresolvedAttempts = 0;
                     SetStatus("已提交 ProductId，正在等待 rg-adguard 返回 MSIX 链接...");
                 }
                 else if (state == "challenge")
@@ -174,11 +201,19 @@ public partial class MainWindow : Window
                 else
                 {
                     SetStatus("正在等待 rg-adguard 页面加载...");
+                    if (unresolvedAttempts >= 2)
+                    {
+                        browserWindow.ShowForAttention("请检查页面并手动完成可能出现的验证");
+                    }
                 }
             }
             else
             {
                 SetStatus($"正在扫描结果中的 OpenAI.Codex {targetArchitecture} MSIX 链接...");
+                if (unresolvedAttempts >= 2)
+                {
+                    browserWindow.ShowForAttention("请检查页面并手动完成可能出现的验证");
+                }
             }
 
             await Task.Delay(1800);
@@ -204,13 +239,16 @@ public partial class MainWindow : Window
             Progress.Value = 0;
 
             var progress = new Progress<double>(value => Progress.Value = Math.Clamp(value, 0, 100));
-            _downloadedPackagePath = await PackageDownloadService.DownloadAsync(
+            var result = await PackageDownloadService.DownloadAsync(
                 _candidate,
                 _settings.DownloadDirectory,
                 GetSelectedArchitecture(),
                 progress);
+            _downloadedPackagePath = result.FilePath;
 
-            SetStatus($"下载完成：{_downloadedPackagePath}");
+            SetStatus(result.ReusedExistingFile
+                ? $"检测到完全相同且验证有效的安装包，已跳过下载：{_downloadedPackagePath}"
+                : $"下载完成：{_downloadedPackagePath}");
             InstallButton.IsEnabled = true;
         });
     }
@@ -345,8 +383,9 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            SetStatus(ex.Message);
-            System.Windows.MessageBox.Show(ex.Message, "Codex 更新器", MessageBoxButton.OK, MessageBoxImage.Error);
+            var message = ExceptionMessageFormatter.Format(ex);
+            SetStatus(message);
+            System.Windows.MessageBox.Show(message, "Codex 更新器", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
         {

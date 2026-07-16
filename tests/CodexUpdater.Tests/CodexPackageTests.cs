@@ -37,7 +37,9 @@ public sealed class CodexPackageTests
     [Theory]
     [InlineData("https://tlu.dl.delivery.mp.microsoft.com/filestreamingservice/files/123", true)]
     [InlineData("https://delivery.mp.microsoft.com/package.msix", true)]
-    [InlineData("http://tlu.dl.delivery.mp.microsoft.com/package.msix", false)]
+    [InlineData("http://tlu.dl.delivery.mp.microsoft.com/package.msix", true)]
+    [InlineData("http://tlu.dl.delivery.mp.microsoft.com:8080/package.msix", false)]
+    [InlineData("https://tlu.dl.delivery.mp.microsoft.com:8443/package.msix", false)]
     [InlineData("https://delivery.mp.microsoft.com.example.test/package.msix", false)]
     [InlineData("https://example.test/package.msix", false)]
     public void IsTrustedDownloadUrl_RestrictsMicrosoftHttpsHosts(string url, bool expected)
@@ -46,7 +48,7 @@ public sealed class CodexPackageTests
     }
 
     [Fact]
-    public void SelectNewest_UpgradesTrustedMicrosoftHttpLinkToHttps()
+    public void SelectNewest_PreservesTrustedMicrosoftHttpLinkForVerifiedFallback()
     {
         const string fileName = "OpenAI.Codex_26.616.10790.0_x64__2p2nqsd0c76g0.msix";
         var candidate = CodexPackage.SelectNewest(new[]
@@ -55,7 +57,7 @@ public sealed class CodexPackageTests
         });
 
         Assert.NotNull(candidate);
-        Assert.StartsWith("https://", candidate.Url, StringComparison.OrdinalIgnoreCase);
+        Assert.StartsWith("http://", candidate.Url, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -68,6 +70,18 @@ public sealed class CodexPackageTests
             "arm64"));
         Assert.False(CodexPackage.IsExpectedFileName(
             "OpenAI.Codex_26.616.10790.0_x64__2p2nqsd0c76g0.BlockMap"));
+    }
+
+    [Fact]
+    public void SelectNewest_CarriesAValidRgAdguardPageHash()
+    {
+        const string fileName = "OpenAI.Codex_26.616.10790.0_x64__2p2nqsd0c76g0.msix";
+        const string sha1 = "0123456789ABCDEF0123456789ABCDEF01234567";
+        var candidate = CodexPackage.SelectNewest(
+            [new PackageLink($"{MicrosoftCdn}/{fileName}", fileName, sha1)]);
+
+        Assert.NotNull(candidate);
+        Assert.Equal(sha1, candidate.PageHash);
     }
 
     private static PackageLink Link(string fileName)

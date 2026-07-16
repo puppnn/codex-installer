@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Codex 更新器"
         Width="500"
-        Height="760"
+        Height="810"
         MinWidth="480"
-        MinHeight="720"
+        MinHeight="780"
         Background="#E7EBE4"
         FontFamily="Microsoft YaHei UI, Segoe UI"
         Foreground="{StaticResource InkBrush}">
@@ -203,6 +203,12 @@
                             Margin="0,9,0,0"
                             IsEnabled="False"
                             Click="InstallButton_Click" />
+                    <Button x:Name="AdvancedOptionsButton"
+                            Content="高级选项"
+                            Margin="0,9,0,0"
+                            Background="#FFFFFF"
+                            Foreground="{StaticResource AccentBrush}"
+                            Click="AdvancedOptionsButton_Click" />
                     <ProgressBar x:Name="Progress"
                                  Margin="0,13,0,0"
                                  Height="10"

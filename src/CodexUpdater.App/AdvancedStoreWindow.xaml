@@ -1,0 +1,222 @@
+<Window x:Class="CodexUpdater.App.AdvancedStoreWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Microsoft Store 高级下载安装"
+        Width="1040"
+        Height="780"
+        MinWidth="900"
+        MinHeight="700"
+        Background="#E7EBE4"
+        FontFamily="Microsoft YaHei UI, Segoe UI"
+        Foreground="{StaticResource InkBrush}">
+    <Grid Margin="16" Background="#E7EBE4">
+        <Border Background="{StaticResource PanelBrush}"
+                BorderBrush="{StaticResource LineBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="20">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="12" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="12" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="12" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="12" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="10" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="10" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0">
+                    <TextBlock Text="Microsoft Store 高级下载安装"
+                               FontSize="24"
+                               FontWeight="Bold" />
+                    <TextBlock Text="输入 ProductId 或 Microsoft Store 官方网页地址"
+                               Margin="0,4,0,0"
+                               FontSize="13"
+                               Foreground="{StaticResource MutedBrush}" />
+                </StackPanel>
+
+                <Grid Grid.Row="2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="126" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="86" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="ProductInputTextBox"
+                             MinHeight="40"
+                             Padding="10,8"
+                             VerticalContentAlignment="Center" />
+                    <Button x:Name="SearchButton"
+                            Grid.Column="2"
+                            Content="解析并搜索"
+                            Click="SearchButton_Click" />
+                    <Button x:Name="CancelButton"
+                            Grid.Column="4"
+                            Content="取消"
+                            IsEnabled="False"
+                            Background="#FFFFFF"
+                            Foreground="{StaticResource AccentBrush}"
+                            Click="CancelButton_Click" />
+                </Grid>
+
+                <Border Grid.Row="4"
+                        Padding="12,9"
+                        Background="#EFF3ED"
+                        BorderBrush="#DCE4DA"
+                        BorderThickness="1"
+                        CornerRadius="7">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="2*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="2*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="应用" FontSize="11" Foreground="{StaticResource MutedBrush}" />
+                            <TextBlock x:Name="ProductNameText" Text="尚未解析" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="ProductId" FontSize="11" Foreground="{StaticResource MutedBrush}" />
+                            <TextBlock x:Name="ProductIdText" Text="-" FontWeight="SemiBold" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Package Family" FontSize="11" Foreground="{StaticResource MutedBrush}" />
+                            <TextBlock x:Name="PackageFamilyText" Text="-" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Grid Grid.Row="6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="100" />
+                        <ColumnDefinition Width="22" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="150" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="安装包下载位置" FontSize="11" Foreground="{StaticResource MutedBrush}" />
+                        <TextBlock x:Name="DownloadDirectoryText" Text="" FontSize="12" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <Button x:Name="ChooseFolderButton"
+                            Grid.Column="2"
+                            Content="更改位置"
+                            MinHeight="36"
+                            Click="ChooseFolderButton_Click" />
+                    <TextBlock Grid.Column="4"
+                               Text="架构筛选"
+                               VerticalAlignment="Center"
+                               FontSize="12"
+                               Foreground="{StaticResource MutedBrush}" />
+                    <ComboBox x:Name="ArchitectureFilterComboBox"
+                              Grid.Column="6"
+                              MinHeight="36"
+                              SelectedIndex="0"
+                              SelectionChanged="ArchitectureFilterComboBox_SelectionChanged">
+                        <ComboBoxItem Content="兼容本机" Tag="compatible" />
+                        <ComboBoxItem Content="x64" Tag="x64" />
+                        <ComboBoxItem Content="x86" Tag="x86" />
+                        <ComboBoxItem Content="arm64" Tag="arm64" />
+                        <ComboBoxItem Content="全部" Tag="all" />
+                    </ComboBox>
+                </Grid>
+
+                <DataGrid x:Name="CandidatesGrid"
+                          Grid.Row="8"
+                          AutoGenerateColumns="False"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          CanUserReorderColumns="False"
+                          IsReadOnly="True"
+                          SelectionMode="Single"
+                          SelectionUnit="FullRow"
+                          HeadersVisibility="Column"
+                          GridLinesVisibility="Horizontal"
+                          SelectionChanged="CandidatesGrid_SelectionChanged">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="文件名" Binding="{Binding FileName}" Width="300">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                                    <Setter Property="ToolTip" Value="{Binding FileName}" />
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="版本" Binding="{Binding Version}" Width="115" />
+                        <DataGridTextColumn Header="架构" Binding="{Binding Architecture}" Width="65" />
+                        <DataGridTextColumn Header="格式" Binding="{Binding Format}" Width="75" />
+                        <DataGridTextColumn Header="页面哈希" Binding="{Binding PageHash}" Width="120" />
+                        <DataGridTextColumn Header="到期时间" Binding="{Binding Expiration}" Width="135" />
+                        <DataGridTextColumn Header="本机状态" Binding="{Binding InstallStatus}" Width="135" />
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <Border Grid.Row="10"
+                        Padding="11,8"
+                        Background="#FFFFFF"
+                        BorderBrush="{StaticResource LineBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                    <StackPanel>
+                        <TextBlock Text="依赖包预览"
+                                   FontWeight="SemiBold"
+                                   FontSize="12"
+                                   Foreground="{StaticResource MutedBrush}" />
+                        <ListBox x:Name="DependenciesList"
+                                 Margin="0,5,0,0"
+                                 MaxHeight="82"
+                                 BorderThickness="0"
+                                 Background="Transparent" />
+                    </StackPanel>
+                </Border>
+
+                <Grid Grid.Row="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="10" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="8" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Button x:Name="DownloadOnlyButton"
+                            Content="仅下载"
+                            IsEnabled="False"
+                            Click="DownloadOnlyButton_Click" />
+                    <Button x:Name="DownloadInstallButton"
+                            Grid.Column="2"
+                            Content="下载并安装"
+                            IsEnabled="False"
+                            Click="DownloadInstallButton_Click" />
+                    <ProgressBar x:Name="Progress"
+                                 Grid.Row="2"
+                                 Grid.ColumnSpan="2"
+                                 Height="9"
+                                 Minimum="0"
+                                 Maximum="100" />
+                    <TextBlock x:Name="StatusText"
+                               Grid.Row="4"
+                               Grid.ColumnSpan="2"
+                               Text="准备就绪。"
+                               FontSize="12"
+                               Foreground="{StaticResource MutedBrush}"
+                               TextWrapping="Wrap" />
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

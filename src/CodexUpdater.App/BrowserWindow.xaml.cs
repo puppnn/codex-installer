@@ -20,18 +20,26 @@ public partial class BrowserWindow : Window
         if (!_initialized)
         {
             Owner = owner;
+            ShowActivated = false;
+            ShowInTaskbar = false;
+            Opacity = 0;
             Show();
-            await Browser.EnsureCoreWebView2Async();
-            Browser.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
-            Browser.CoreWebView2.Settings.AreDevToolsEnabled = false;
-            Browser.CoreWebView2.Navigate(CodexPackage.RgAdguardUrl);
-            _initialized = true;
+            try
+            {
+                await Browser.EnsureCoreWebView2Async();
+                Browser.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
+                Browser.CoreWebView2.Settings.AreDevToolsEnabled = false;
+                Browser.CoreWebView2.Navigate(CodexPackage.RgAdguardUrl);
+                _initialized = true;
+            }
+            finally
+            {
+                Hide();
+                Opacity = 1;
+                ShowActivated = true;
+                ShowInTaskbar = true;
+            }
             return;
-        }
-
-        if (!IsVisible)
-        {
-            Show();
         }
     }
 
@@ -60,12 +68,31 @@ public partial class BrowserWindow : Window
         Close();
     }
 
-    public async Task<string> FillAndSubmitRgAdguardAsync()
+    public void NavigateToGenerator()
     {
-        const string script = """
+        if (!_initialized)
+        {
+            return;
+        }
+
+        Browser.CoreWebView2.Navigate(CodexPackage.RgAdguardUrl);
+    }
+
+    public async Task<string> FillAndSubmitRgAdguardAsync(string productId)
+    {
+        if (!StoreProductInputParser.TryNormalizeProductId(productId, out var normalizedProductId))
+        {
+            throw new InvalidOperationException("ProductId 格式无效。");
+        }
+
+        var productIdJson = JsonSerializer.Serialize(normalizedProductId);
+        var script = $$"""
             (() => {
+              const productId = {{productIdJson}};
               const bodyText = document.body?.innerText || "";
-              if (/Just a moment|Enable JavaScript|Checking your browser|Cloudflare/i.test(bodyText)) {
+              const challengeControl = document.querySelector(
+                'iframe[src*="challenges.cloudflare.com"], iframe[title*="challenge" i], .cf-turnstile, [name="cf-turnstile-response"]');
+              if (challengeControl || /Just a moment|Enable JavaScript|Checking your browser|Cloudflare/i.test(bodyText)) {
                 return "challenge";
               }
 
@@ -92,7 +119,7 @@ public partial class BrowserWindow : Window
               };
 
               setSelect(selects[0], "ProductId");
-              setValue(textInput, "9PLM9XGG6VKS");
+              setValue(textInput, productId);
               if (selects.length > 1) setSelect(selects[1], "Retail");
 
               const controls = Array.from(document.querySelectorAll("button,input[type=submit],input[type=button]"));
@@ -113,22 +140,34 @@ public partial class BrowserWindow : Window
 
     public async Task<IReadOnlyList<PackageLink>> ExtractLinksAsync()
     {
+        var rows = await ExtractPackageRowsAsync();
+        return rows.Select(row => new PackageLink(row.Href, row.Text, row.PageHash)).ToArray();
+    }
+
+    public async Task<IReadOnlyList<PackageLinkRow>> ExtractPackageRowsAsync()
+    {
         const string script = """
-            (() => Array.from(document.links).map(anchor => ({
-              href: anchor.href || "",
-              text: (anchor.textContent || "").trim()
-            })))();
+            (() => Array.from(document.links).map(anchor => {
+              const row = anchor.closest("tr");
+              const cells = row ? Array.from(row.querySelectorAll("td")).map(cell => (cell.textContent || "").trim()) : [];
+              return {
+                href: anchor.href || "",
+                text: (anchor.textContent || "").trim(),
+                expires: cells.length > 1 ? cells[1] : "",
+                pageHash: cells.length > 2 ? cells[2] : ""
+              };
+            }))();
             """;
 
         var json = await Browser.CoreWebView2.ExecuteScriptAsync(script);
-        var links = JsonSerializer.Deserialize<List<BrowserLink>>(
+        var links = JsonSerializer.Deserialize<List<BrowserLinkRow>>(
             json,
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
         return links?
             .Where(link => !string.IsNullOrWhiteSpace(link.Href) || !string.IsNullOrWhiteSpace(link.Text))
-            .Select(link => new PackageLink(link.Href, link.Text))
-            .ToArray() ?? Array.Empty<PackageLink>();
+            .Select(link => new PackageLinkRow(link.Href, link.Text, link.Expires, link.PageHash))
+            .ToArray() ?? Array.Empty<PackageLinkRow>();
     }
 
     private void BrowserWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
@@ -139,5 +178,9 @@ public partial class BrowserWindow : Window
         Hide();
     }
 
-    private sealed record BrowserLink(string Href, string Text);
+    private sealed record BrowserLinkRow(
+        string Href,
+        string Text,
+        string? Expires,
+        string? PageHash);
 }
