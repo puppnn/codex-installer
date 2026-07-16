@@ -7,22 +7,13 @@ Codex Installer is a Windows helper for installing or updating the OpenAI Codex 
 > 本项目是第三方社区工具，不是 OpenAI 或 Microsoft 官方安装器。
 > This is an independent community tool, not an official OpenAI or Microsoft installer.
 
+## 直接下载 / Download
+
+**[点击直接下载 CodexInstaller-win-x64.exe](https://github.com/puppnn/codex-installer/releases/latest/download/CodexInstaller-win-x64.exe)**
+
+适用于 Windows 10/11 x64，无需进入 Releases 页面。其他发布文件和校验信息可在 [Releases](https://github.com/puppnn/codex-installer/releases/latest) 中查看。
+
 ![Codex Installer main window](docs/assets/app-main-clean.png)
-
-## v1.1.0 更新 / What's New
-
-- 新增独立的 `高级选项` 窗口，可输入 Microsoft Store ProductId 或粘贴微软官方 Store 网页地址。
-- 从微软官方页面读取并核对应用名称、安装器类型、支持平台和 Package Family Name。
-- 支持 `.msix`、`.appx`、`.msixbundle` 和 `.appxbundle`，自动解析并下载外部依赖。
-- 可选择兼容架构、历史版本、仅下载或下载并安装；低于本机版本时禁止自动降级。
-- 下载后校验数字签名、Manifest、发布者、PFN、版本和架构，依赖包逐个独立验证。
-- 检查更新时显示等待窗口；需要 Cloudflare/Turnstile 验证时自动显示内置浏览器供用户手动勾选。
-- 本地已有完全相同的安装包时，通过页面哈希、数字签名和包身份复验后直接复用。
-- 修复部分中国区微软 CDN 不支持正确 HTTPS 证书导致的下载失败：优先 HTTPS，仅在原链接本来就是微软 CDN HTTP 地址时回退。
-
-The advanced mode accepts a Store ProductId or official Microsoft Store URL, verifies Microsoft metadata, lists compatible APPX/MSIX packages, resolves dependencies, and installs the selected package for the current Windows user.
-
-![Microsoft Store advanced download window](docs/assets/app-advanced.png)
 
 ## 解决的问题 / Problem
 
@@ -86,6 +77,21 @@ Codex 专用模式会在安装前提示关闭正在运行的 Codex；通用高�
 6. 文件保存到 `<自定义下载目录>\<ProductId>\<版本>\<架构>\`。
 
 如果应用显示“使用 WPM 安装器”，说明它实际分发的是 EXE/MSI 等 Win32 安装器，不能使用 `Add-AppxPackage`，本工具会主动停止。
+
+## v1.1.0 更新 / What's New
+
+- 新增独立的 `高级选项` 窗口，可输入 Microsoft Store ProductId 或粘贴微软官方 Store 网页地址。
+- 从微软官方页面读取并核对应用名称、安装器类型、支持平台和 Package Family Name。
+- 支持 `.msix`、`.appx`、`.msixbundle` 和 `.appxbundle`，自动解析并下载外部依赖。
+- 可选择兼容架构、历史版本、仅下载或下载并安装；低于本机版本时禁止自动降级。
+- 下载后校验数字签名、Manifest、发布者、PFN、版本和架构，依赖包逐个独立验证。
+- 检查更新时显示等待窗口；需要 Cloudflare/Turnstile 验证时自动显示内置浏览器供用户手动勾选。
+- 本地已有完全相同的安装包时，通过页面哈希、数字签名和包身份复验后直接复用。
+- 修复部分中国区微软 CDN 不支持正确 HTTPS 证书导致的下载失败：优先 HTTPS，仅在原链接本来就是微软 CDN HTTP 地址时回退。
+
+The advanced mode accepts a Store ProductId or official Microsoft Store URL, verifies Microsoft metadata, lists compatible APPX/MSIX packages, resolves dependencies, and installs the selected package for the current Windows user.
+
+![Microsoft Store advanced download window](docs/assets/app-advanced.png)
 
 ## Version Comparison
 
