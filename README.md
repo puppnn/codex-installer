@@ -11,11 +11,7 @@ Codex Installer is a Windows helper for installing or updating the OpenAI Codex 
 
 **[点击直接下载 CodexInstaller-win-x64.exe](https://github.com/puppnn/codex-installer/releases/latest/download/CodexInstaller-win-x64.exe)**
 
-完整独立版适用于 Windows 10/11 x64，无需预装 .NET，也无需进入 Releases 页面。其他发布文件和校验信息可在 [Releases](https://github.com/puppnn/codex-installer/releases/latest) 中查看。
-
-**[下载源码内轻量版 CodexInstaller-lite-win-x64.exe](https://github.com/puppnn/codex-installer/raw/refs/heads/main/portable-lite/CodexInstaller-lite-win-x64.exe)**
-
-轻量版约 3.2 MB，随源码一起提供；解压 GitHub 的 `Source code.zip` 后也可在 `portable-lite` 目录中找到。它保留 WebView2 缺失时的微软官方安装引导，但需要电脑预先安装微软官方的 [.NET 10 Desktop Runtime x64](https://dotnet.microsoft.com/download/dotnet/10.0)。
+适用于 Windows 10/11 x64，无需进入 Releases 页面。其他发布文件和校验信息可在 [Releases](https://github.com/puppnn/codex-installer/releases/latest) 中查看。
 
 ![Codex Installer main window with advanced options](docs/assets/app-main-v1.1.0.png)
 
@@ -117,14 +113,6 @@ Framework-dependent build:
 ```powershell
 .\build.ps1
 ```
-
-Lightweight framework-dependent single EXE included with the source:
-
-```powershell
-.\build-lite.ps1
-```
-
-Output: `portable-lite\CodexInstaller-lite-win-x64.exe`. This build embeds the pinned Microsoft WebView2 Bootstrapper but requires .NET 10 Desktop Runtime x64.
 
 Self-contained release EXE with the pinned Microsoft WebView2 Bootstrapper:
 
