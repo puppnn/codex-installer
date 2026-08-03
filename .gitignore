@@ -3,6 +3,7 @@ obj/
 .codegraph/
 publish/
 publish-exe/
+publish-lite/
 dist/
 src/CodexUpdater.App/Vendor/*.exe
 *.user
