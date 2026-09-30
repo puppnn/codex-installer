@@ -9,6 +9,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Vendor\WebView2Bootstrapper.json"
+                      LogicalName="WebView2Bootstrapper.json" />
     <EmbeddedResource Include="Vendor\MicrosoftEdgeWebview2Setup.exe"
                       LogicalName="MicrosoftEdgeWebview2Setup.exe"
                       Condition="Exists('Vendor\MicrosoftEdgeWebview2Setup.exe')" />
@@ -17,10 +19,10 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
-    <Version>1.1.0</Version>
-    <AssemblyVersion>1.1.0.0</AssemblyVersion>
-    <FileVersion>1.1.0.0</FileVersion>
-    <InformationalVersion>1.1.0</InformationalVersion>
+    <Version>1.2.0</Version>
+    <AssemblyVersion>1.2.0.0</AssemblyVersion>
+    <FileVersion>1.2.0.0</FileVersion>
+    <InformationalVersion>1.2.0</InformationalVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>

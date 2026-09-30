@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using CodexUpdater.Core;
 
 namespace CodexUpdater.App;
 
@@ -19,7 +20,8 @@ internal static class PowerShellRunner
             throw new FileNotFoundException("找不到系统 Windows PowerShell。", powerShellPath);
         }
 
-        var encodedCommand = Convert.ToBase64String(Encoding.Unicode.GetBytes(command));
+        var script = BuildScript(command);
+        var encodedCommand = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
         using var process = new Process();
         process.StartInfo = new ProcessStartInfo
         {
@@ -40,12 +42,14 @@ internal static class PowerShellRunner
         process.StartInfo.ArgumentList.Add("-NoLogo");
         process.StartInfo.ArgumentList.Add("-NoProfile");
         process.StartInfo.ArgumentList.Add("-NonInteractive");
+        process.StartInfo.ArgumentList.Add("-OutputFormat");
+        process.StartInfo.ArgumentList.Add("Text");
         process.StartInfo.ArgumentList.Add("-EncodedCommand");
         process.StartInfo.ArgumentList.Add(encodedCommand);
 
         process.Start();
-        var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+        var stdoutTask = process.StandardOutput.ReadToEndAsync();
+        var stderrTask = process.StandardError.ReadToEndAsync();
         try
         {
             await process.WaitForExitAsync(cancellationToken);
@@ -55,24 +59,47 @@ internal static class PowerShellRunner
             try
             {
                 process.Kill(entireProcessTree: true);
+                await process.WaitForExitAsync();
             }
             catch
             {
                 // The process may already have exited.
             }
 
+            await Task.WhenAll(stdoutTask, stderrTask);
             throw;
         }
 
         return new ProcessRunResult(
             process.ExitCode,
-            await stdoutTask,
-            await stderrTask);
+            PowerShellOutputFormatter.Clean(await stdoutTask),
+            PowerShellOutputFormatter.Clean(await stderrTask));
     }
 
+    internal static string BuildScript(string command) => $$"""
+        $ProgressPreference = 'SilentlyContinue'
+        $utf8 = [System.Text.UTF8Encoding]::new($false)
+        [Console]::OutputEncoding = $utf8
+        $OutputEncoding = $utf8
+        $ErrorActionPreference = 'Stop'
+        try {
+            & {
+        {{command}}
+            }
+            exit 0
+        } catch {
+            [Console]::Error.WriteLine(($_ | Out-String -Width 240).Trim())
+            if ($_.Exception) { [Console]::Error.WriteLine($_.Exception.ToString()) }
+            exit 1
+        }
+        """;
 }
 
 internal sealed record ProcessRunResult(int ExitCode, string StandardOutput, string StandardError)
 {
     public bool Succeeded => ExitCode == 0;
+
+    public string ErrorMessage => string.IsNullOrWhiteSpace(StandardError)
+        ? StandardOutput
+        : StandardError;
 }

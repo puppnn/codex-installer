@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace CodexUpdater.Core;
 
@@ -12,19 +13,20 @@ public sealed record StoreProductMetadata(
     string ProductType,
     bool? IsFree);
 
-public static class StoreProductMetadataParser
+public static partial class StoreProductMetadataParser
 {
-    private const string MetadataMarker = "window.pageMetadata = ";
+    [GeneratedRegex(@"window\.pageMetadata\s*=\s*", RegexOptions.CultureInvariant)]
+    private static partial Regex MetadataMarkerRegex();
 
     public static StoreProductMetadata Parse(string html, string expectedProductId)
     {
-        var markerIndex = html.IndexOf(MetadataMarker, StringComparison.Ordinal);
-        if (markerIndex < 0)
+        var marker = MetadataMarkerRegex().Match(html);
+        if (!marker.Success)
         {
             throw new InvalidOperationException("Microsoft Store 页面中缺少 pageMetadata。");
         }
 
-        var jsonStart = markerIndex + MetadataMarker.Length;
+        var jsonStart = marker.Index + marker.Length;
         var bytes = Encoding.UTF8.GetBytes(html[jsonStart..]);
         var reader = new Utf8JsonReader(bytes, isFinalBlock: true, state: default);
         if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject)
@@ -64,7 +66,7 @@ public static class StoreProductMetadataParser
 
         var displayName = OptionalString(root, "title") ?? productId;
         var productType = OptionalString(root, "productType") ?? "Application";
-        bool? isFree = root.TryGetProperty("price", out var price) && price.TryGetDecimal(out var amount)
+        bool? isFree = root.TryGetProperty("price", out var price) && price.ValueKind == JsonValueKind.Number && price.TryGetDecimal(out var amount)
             ? amount == 0
             : null;
 

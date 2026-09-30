@@ -48,6 +48,12 @@ public sealed class PackageDependencyResolverTests
             PackageDependencyResolver.Resolve([requirement], [], "arm64"));
     }
 
+    [Fact]
+    public void Resolve_DoesNotRequireOptionalFrameworks()
+    {
+        Assert.Empty(PackageDependencyResolver.Resolve([Requirement() with { IsOptional = true }], [], "x64"));
+    }
+
     [Theory]
     [InlineData("x64", Architecture.X64, true)]
     [InlineData("x86", Architecture.X64, true)]

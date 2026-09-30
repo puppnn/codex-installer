@@ -1,6 +1,8 @@
 using System.Text.Json;
+using System.IO;
 using System.Windows;
 using CodexUpdater.Core;
+using Microsoft.Web.WebView2.Core;
 
 namespace CodexUpdater.App;
 
@@ -26,10 +28,13 @@ public partial class BrowserWindow : Window
             Show();
             try
             {
-                await Browser.EnsureCoreWebView2Async();
+                var userDataFolder = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "CodexUpdater", "WebView2");
+                var environment = await CoreWebView2Environment.CreateAsync(userDataFolder: userDataFolder);
+                await Browser.EnsureCoreWebView2Async(environment);
                 Browser.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
                 Browser.CoreWebView2.Settings.AreDevToolsEnabled = false;
-                Browser.CoreWebView2.Navigate(CodexPackage.RgAdguardUrl);
                 _initialized = true;
             }
             finally
@@ -49,9 +54,8 @@ public partial class BrowserWindow : Window
         if (!IsVisible)
         {
             Show();
+            Activate();
         }
-
-        Activate();
     }
 
     public void HideAfterSuccess()
@@ -65,7 +69,86 @@ public partial class BrowserWindow : Window
     public void CloseForShutdown()
     {
         _forceClose = true;
+        Browser.Dispose();
         Close();
+    }
+
+    public async Task<IReadOnlyList<PackageLinkRow>> QueryPackagesAsync(
+        string productId,
+        Func<IReadOnlyList<PackageLinkRow>, bool> hasExpectedPackages,
+        IProgress<string> status,
+        CancellationToken cancellationToken)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromMinutes(4));
+        var token = deadline.Token;
+        try
+        {
+            await NavigateAndWaitAsync("about:blank", token);
+            await NavigateAndWaitAsync(CodexPackage.RgAdguardUrl, token);
+            var submitted = false;
+            var attempts = 0;
+            while (true)
+            {
+                token.ThrowIfCancellationRequested();
+                if (!submitted)
+                {
+                    var state = await FillAndSubmitRgAdguardAsync(productId).WaitAsync(token);
+                    submitted = state == "submitted";
+                    if (state == "challenge")
+                    {
+                        ShowForAttention("请完成验证，完成后会自动继续");
+                        status.Report("请在链接浏览器中完成验证。");
+                    }
+                    else
+                    {
+                        status.Report(submitted ? "已提交查询，正在等待安装包列表..." : "正在等待查询页面加载...");
+                    }
+                }
+                else
+                {
+                    var rows = await ExtractPackageRowsAsync().WaitAsync(token);
+                    if (hasExpectedPackages(rows))
+                    {
+                        HideAfterSuccess();
+                        return rows;
+                    }
+                }
+
+                if (++attempts >= 5) ShowForAttention("请检查页面并完成可能出现的验证");
+                await Task.Delay(1200, token);
+            }
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException("等待 rg-adguard 安装包列表超时，请检查网络或手动完成页面验证后重试。");
+        }
+        finally
+        {
+            Browser.CoreWebView2?.Stop();
+            HideAfterSuccess();
+        }
+    }
+
+    private async Task NavigateAndWaitAsync(string address, CancellationToken cancellationToken)
+    {
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void Completed(object? sender, CoreWebView2NavigationCompletedEventArgs e)
+        {
+            if (e.IsSuccess || e.HttpStatusCode is 403 or 429 or 503) completion.TrySetResult();
+            else completion.TrySetException(new InvalidOperationException($"链接页面加载失败：{e.WebErrorStatus}。"));
+        }
+
+        Browser.CoreWebView2.NavigationCompleted += Completed;
+        try
+        {
+            Browser.CoreWebView2.Navigate(address);
+            await completion.Task.WaitAsync(cancellationToken);
+        }
+        finally
+        {
+            Browser.CoreWebView2.NavigationCompleted -= Completed;
+        }
     }
 
     public void NavigateToGenerator()
@@ -89,10 +172,13 @@ public partial class BrowserWindow : Window
         var script = $$"""
             (() => {
               const productId = {{productIdJson}};
+              if (location.hostname !== "store.rg-adguard.net") return "loading";
               const bodyText = document.body?.innerText || "";
+              const challengeResponse = document.querySelector('[name="cf-turnstile-response"]');
+              const verificationComplete = Boolean(challengeResponse?.value?.trim());
               const challengeControl = document.querySelector(
                 'iframe[src*="challenges.cloudflare.com"], iframe[title*="challenge" i], .cf-turnstile, [name="cf-turnstile-response"]');
-              if (challengeControl || /Just a moment|Enable JavaScript|Checking your browser|Cloudflare/i.test(bodyText)) {
+              if ((!verificationComplete && challengeControl) || /Just a moment|Enable JavaScript|Checking your browser/i.test(bodyText)) {
                 return "challenge";
               }
 
@@ -129,6 +215,12 @@ public partial class BrowserWindow : Window
               }) || controls[controls.length - 1];
 
               if (!submit) return "loading";
+              document.querySelectorAll("tr").forEach(row => {
+                if (Array.from(row.querySelectorAll("a")).some(anchor => {
+                  try { return new URL(anchor.href).hostname.endsWith(".delivery.mp.microsoft.com"); }
+                  catch { return false; }
+                })) row.remove();
+              });
               submit.click();
               return "submitted";
             })();

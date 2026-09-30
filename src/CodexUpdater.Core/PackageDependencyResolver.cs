@@ -16,7 +16,7 @@ public static class PackageDependencyResolver
             .ToArray();
         var resolved = new List<ResolvedPackageDependency>();
 
-        foreach (var requirement in requirements.Distinct())
+        foreach (var requirement in requirements.Where(requirement => !requirement.IsOptional).Distinct())
         {
             var candidate = available
                 .Where(item => item.IdentityName.Equals(requirement.Name, StringComparison.OrdinalIgnoreCase) &&

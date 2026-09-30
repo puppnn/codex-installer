@@ -28,9 +28,18 @@ jobs:
       - name: Restore and audit packages
         run: dotnet restore .\CodexUpdater.sln /p:NuGetAudit=true
 
-      - name: Build, test, and publish
+      - name: Check formatting
+        run: dotnet format .\CodexUpdater.sln --verify-no-changes --no-restore
+
+      - name: Build
+        run: dotnet build .\CodexUpdater.sln -c Release --no-restore -warnaserror
+
+      - name: Test
+        run: dotnet test .\tests\CodexUpdater.Tests\CodexUpdater.Tests.csproj -c Release --no-build --no-restore
+
+      - name: Publish
         shell: pwsh
-        run: .\build-full.ps1
+        run: .\build-full.ps1 -SkipValidation
 
       - name: Upload release executable
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

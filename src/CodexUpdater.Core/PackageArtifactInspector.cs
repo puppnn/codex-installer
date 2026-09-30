@@ -8,7 +8,8 @@ public sealed record PackageDependencyRequirement(
     string Name,
     string Publisher,
     Version MinimumVersion,
-    string? PublisherId = null);
+    string? PublisherId = null,
+    bool IsOptional = false);
 
 public sealed record PackageArtifactIdentity(
     string Name,
@@ -17,7 +18,14 @@ public sealed record PackageArtifactIdentity(
     string Architecture,
     Version Version,
     StorePackageFormat Format,
-    IReadOnlyList<PackageDependencyRequirement> Dependencies);
+    IReadOnlyList<PackageDependencyRequirement> Dependencies)
+{
+    public Version? PayloadVersion { get; init; }
+    public Version ApplicationVersion => PayloadVersion ?? Version;
+    public Version? MinimumWindowsVersion { get; init; }
+    public bool IsFramework { get; init; }
+    public bool IsResourcePackage { get; init; }
+}
 
 public static class PackageArtifactInspector
 {
@@ -48,7 +56,12 @@ public static class PackageArtifactInspector
             RequiredAttribute(identity, "ProcessorArchitecture").ToLowerInvariant(),
             ParseVersion(RequiredAttribute(identity, "Version"), "MSIX Manifest"),
             format,
-            ReadDependencies(manifest));
+            ReadDependencies(manifest))
+        {
+            MinimumWindowsVersion = ReadMinimumWindowsVersion(manifest),
+            IsFramework = ReadBooleanProperty(manifest, "Framework"),
+            IsResourcePackage = ReadBooleanProperty(manifest, "ResourcePackage"),
+        };
     }
 
     private static PackageArtifactIdentity InspectBundle(
@@ -107,7 +120,8 @@ public static class PackageArtifactInspector
             var bundleName = RequiredAttribute(bundleIdentity, "Name");
             var bundlePublisher = RequiredAttribute(bundleIdentity, "Publisher");
             if (!payloadIdentity.Name.Equals(bundleName, StringComparison.OrdinalIgnoreCase) ||
-                !payloadIdentity.Publisher.Equals(bundlePublisher, StringComparison.OrdinalIgnoreCase))
+                !payloadIdentity.Publisher.Equals(bundlePublisher, StringComparison.OrdinalIgnoreCase) ||
+                !payloadIdentity.Architecture.Equals(payload.Architecture, StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException("Bundle 与应用 payload 的身份不一致。");
             }
@@ -119,7 +133,13 @@ public static class PackageArtifactInspector
                 payloadIdentity.Architecture,
                 ParseVersion(RequiredAttribute(bundleIdentity, "Version"), "Bundle Manifest"),
                 format,
-                payloadIdentity.Dependencies);
+                payloadIdentity.Dependencies)
+            {
+                PayloadVersion = payloadIdentity.ApplicationVersion,
+                MinimumWindowsVersion = payloadIdentity.MinimumWindowsVersion,
+                IsFramework = payloadIdentity.IsFramework,
+                IsResourcePackage = payloadIdentity.IsResourcePackage,
+            };
         }
         finally
         {
@@ -142,10 +162,30 @@ public static class PackageArtifactInspector
             .Select(element => new PackageDependencyRequirement(
                 RequiredAttribute(element, "Name"),
                 RequiredAttribute(element, "Publisher"),
-                ParseVersion(OptionalAttribute(element, "MinVersion") ?? "0.0.0.0", "PackageDependency")))
+                ParseVersion(OptionalAttribute(element, "MinVersion") ?? "0.0.0.0", "PackageDependency"),
+                IsOptional: string.Equals(
+                    (string?)element.Attribute(XName.Get("Optional", "http://schemas.microsoft.com/appx/manifest/uap/windows10/6")),
+                    "true",
+                    StringComparison.OrdinalIgnoreCase)))
             .Distinct()
             .ToArray();
     }
+
+    private static Version? ReadMinimumWindowsVersion(XDocument manifest)
+    {
+        return manifest.Descendants()
+            .Where(element => element.Name.LocalName == "TargetDeviceFamily" &&
+                (OptionalAttribute(element, "Name") is "Windows.Desktop" or "Windows.Universal"))
+            .Select(element => ParseVersion(RequiredAttribute(element, "MinVersion"), "TargetDeviceFamily"))
+            .OrderByDescending(version => version)
+            .FirstOrDefault();
+    }
+
+    private static bool ReadBooleanProperty(XDocument manifest, string name) => manifest.Root?.Elements()
+        .Where(element => element.Name.LocalName == "Properties")
+        .Elements()
+        .Any(element => element.Name.LocalName == name &&
+            element.Value.Trim().Equals("true", StringComparison.OrdinalIgnoreCase)) == true;
 
     private static XDocument LoadManifest(ZipArchive archive, string path)
     {

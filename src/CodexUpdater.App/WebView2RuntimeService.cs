@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
 using System.Reflection;
+using System.Text.Json;
 using System.Windows;
 using Microsoft.Web.WebView2.Core;
 
@@ -10,8 +11,6 @@ namespace CodexUpdater.App;
 internal static class WebView2RuntimeService
 {
     private const string EmbeddedInstallerName = "MicrosoftEdgeWebview2Setup.exe";
-    private const string EmbeddedInstallerSha256 =
-        "F91077E2C116DCF6377E555D0D4A3A564D242351AD6718B6954658D4F74819C1";
     private const string DownloadPageUrl = "https://developer.microsoft.com/microsoft-edge/webview2/";
 
     public static bool IsRuntimeAvailable()
@@ -109,7 +108,7 @@ internal static class WebView2RuntimeService
         try
         {
             var actualHash = Convert.ToHexString(SHA256.HashData(stream));
-            if (!actualHash.Equals(EmbeddedInstallerSha256, StringComparison.OrdinalIgnoreCase))
+            if (!actualHash.Equals(ReadEmbeddedInstallerHash(), StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException("内置 WebView2 安装器哈希校验失败，已停止运行。");
             }
@@ -123,6 +122,17 @@ internal static class WebView2RuntimeService
             stream.Dispose();
             throw;
         }
+    }
+
+    internal static string ReadEmbeddedInstallerHash()
+    {
+        using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("WebView2Bootstrapper.json")
+            ?? throw new InvalidOperationException("缺少 WebView2 构建校验信息。");
+        using var document = JsonDocument.Parse(stream);
+        var hash = document.RootElement.GetProperty("sha256").GetString();
+        if (hash is not { Length: 64 } || !hash.All(Uri.IsHexDigit))
+            throw new InvalidOperationException("WebView2 构建校验信息无效。");
+        return hash;
     }
 
     private static async Task<int> RunInstallerAsync(string installerPath)

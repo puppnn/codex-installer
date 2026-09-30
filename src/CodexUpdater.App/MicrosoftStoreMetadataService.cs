@@ -13,6 +13,17 @@ internal static class MicrosoftStoreMetadataService
         string productId,
         CancellationToken cancellationToken = default)
     {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(30));
+        try { return await ResolveCoreAsync(productId, timeout.Token); }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException("读取 Microsoft Store 页面超时，请检查网络后重试。");
+        }
+    }
+
+    private static async Task<StoreProductMetadata> ResolveCoreAsync(string productId, CancellationToken cancellationToken)
+    {
         if (!StoreProductInputParser.TryNormalizeProductId(productId, out var normalizedProductId))
         {
             throw new InvalidOperationException("Microsoft Store ProductId 格式无效。");
@@ -20,8 +31,7 @@ internal static class MicrosoftStoreMetadataService
 
         using var handler = new HttpClientHandler
         {
-            AllowAutoRedirect = true,
-            MaxAutomaticRedirections = 5,
+            AllowAutoRedirect = false,
         };
         using var client = new HttpClient(handler)
         {
@@ -31,9 +41,10 @@ internal static class MicrosoftStoreMetadataService
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) CodexUpdater/1.1");
 
         var url = $"https://apps.microsoft.com/detail/{Uri.EscapeDataString(normalizedProductId)}?hl=zh-CN&gl=US";
-        using var response = await client.GetAsync(
-            url,
-            HttpCompletionOption.ResponseHeadersRead,
+        using var response = await TrustedHttpService.GetResponseAsync(
+            client, new Uri(url),
+            uri => uri.Scheme == Uri.UriSchemeHttps && uri.IsDefaultPort && string.IsNullOrEmpty(uri.UserInfo) &&
+                uri.IdnHost.TrimEnd('.').Equals("apps.microsoft.com", StringComparison.OrdinalIgnoreCase),
             cancellationToken);
         response.EnsureSuccessStatusCode();
 

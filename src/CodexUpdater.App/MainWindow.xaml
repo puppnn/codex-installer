@@ -1,234 +1,153 @@
 <Window x:Class="CodexUpdater.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Codex 更新器"
-        Width="500"
-        Height="810"
-        MinWidth="480"
-        MinHeight="780"
-        Background="#E7EBE4"
-        FontFamily="Microsoft YaHei UI, Segoe UI"
-        Foreground="{StaticResource InkBrush}">
-    <Grid Margin="16">
-        <Border Background="{StaticResource PanelBrush}"
-                BorderBrush="{StaticResource LineBrush}"
-                BorderThickness="1"
-                CornerRadius="8"
-                Padding="20">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="12" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="10" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="12" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="14" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
+        Title="Codex 下载安装器" Width="560" Height="640" MinWidth="420" MinHeight="440"
+        Background="{StaticResource PanelBrush}" FontFamily="Microsoft YaHei UI, Segoe UI"
+        Foreground="{StaticResource InkBrush}"
+        UseLayoutRounding="True" SnapsToDevicePixels="True">
+    <Grid x:Name="MainViewport" Margin="16,14" Background="{StaticResource PanelBrush}"
+          SizeChanged="MainViewport_SizeChanged">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
 
-                <StackPanel Grid.Row="0">
-                    <TextBlock Text="Codex 更新器"
-                               FontSize="28"
-                               FontWeight="Bold" />
-                    <TextBlock x:Name="SubtitleText"
-                               Text="绕过 Microsoft Store，下载并安装 x64 MSIX"
-                               Margin="0,5,0,0"
-                               Foreground="{StaticResource MutedBrush}"
-                               FontSize="13" />
-                </StackPanel>
+        <StackPanel Margin="0,0,0,12">
+            <TextBlock Text="Codex 下载安装器" FontSize="22" FontWeight="Bold" />
+            <TextBlock x:Name="SubtitleText" Text="Microsoft Store 安装包下载与安装"
+                       Margin="0,4,0,0" Foreground="{StaticResource MutedBrush}" FontSize="12" />
+        </StackPanel>
 
-                <Grid Grid.Row="2">
+        <Grid x:Name="BodyArea" Grid.Row="1" ClipToBounds="True">
+            <Grid.RowDefinitions>
+                <RowDefinition x:Name="InformationRow" Height="Auto" />
+                <RowDefinition x:Name="HistoryRow" Height="*" />
+            </Grid.RowDefinitions>
+            <ScrollViewer x:Name="InformationScroller" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled" CanContentScroll="False">
+                <Grid x:Name="InformationGrid">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="10" />
-                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition x:Name="InformationLeadingColumn" Width="*" />
+                        <ColumnDefinition x:Name="InformationGapColumn" Width="0" />
+                        <ColumnDefinition x:Name="InformationTrailingColumn" Width="0" />
                     </Grid.ColumnDefinitions>
 
-                    <Border Grid.Column="0"
-                            Padding="13"
-                            Background="#FFFFFF"
-                            BorderBrush="{StaticResource LineBrush}"
-                            BorderThickness="1"
-                            CornerRadius="8">
-                        <StackPanel>
-                            <TextBlock Text="当前安装"
-                                       FontWeight="SemiBold"
-                                       FontSize="13"
-                                       Foreground="{StaticResource MutedBrush}" />
-                            <TextBlock x:Name="InstalledVersionText"
-                                       Text="正在读取..."
-                                       Margin="0,7,0,0"
-                                       FontSize="17"
-                                       FontWeight="SemiBold"
-                                       TextTrimming="CharacterEllipsis" />
-                            <TextBlock x:Name="InstalledPackageText"
-                                       Text=""
-                                       Margin="0,4,0,0"
-                                       FontSize="12"
-                                       Foreground="{StaticResource MutedBrush}"
-                                       TextWrapping="Wrap" />
-                        </StackPanel>
-                    </Border>
-
-                    <Border Grid.Column="2"
-                            Padding="13"
-                            Background="#FFFFFF"
-                            BorderBrush="{StaticResource LineBrush}"
-                            BorderThickness="1"
-                            CornerRadius="8">
-                        <StackPanel>
-                            <TextBlock Text="候选安装包"
-                                       FontWeight="SemiBold"
-                                       FontSize="13"
-                                       Foreground="{StaticResource MutedBrush}" />
-                            <TextBlock x:Name="CandidateText"
-                                       Text="还没有检查更新"
-                                       Margin="0,7,0,0"
-                                       FontSize="14"
-                                       FontWeight="SemiBold"
-                                       TextWrapping="Wrap" />
-                            <TextBlock x:Name="CandidateUrlText"
-                                       Text=""
-                                       Margin="0,4,0,0"
-                                       FontSize="12"
-                                       Foreground="{StaticResource MutedBrush}"
-                                       TextWrapping="Wrap" />
-                        </StackPanel>
-                    </Border>
-                </Grid>
-
-                <Border Grid.Row="4"
-                        Padding="11,9"
-                        Background="#EFF3ED"
-                        BorderBrush="#DCE4DA"
-                        BorderThickness="1"
-                        CornerRadius="7">
-                    <TextBlock x:Name="ComparisonText"
-                               Text="检查更新后会在这里显示版本对比。"
-                               FontSize="12"
-                               Foreground="{StaticResource MutedBrush}"
-                               TextWrapping="Wrap" />
-                </Border>
-
-                <Grid Grid.Row="6">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="12" />
-                        <ColumnDefinition Width="128" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0">
-                        <TextBlock Text="安装包下载位置"
-                                   FontWeight="SemiBold"
-                                   FontSize="13"
-                                   Foreground="{StaticResource MutedBrush}" />
-                        <TextBlock x:Name="DownloadDirectoryText"
-                                   Text=""
-                                   Margin="0,5,0,0"
-                                   FontSize="12"
-                                   Foreground="{StaticResource MutedBrush}"
-                                   TextWrapping="Wrap"
-                                   MaxHeight="42" />
+                    <StackPanel x:Name="VersionSection" Grid.ColumnSpan="3">
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="10" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                            <Border Padding="10" Background="White" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="6">
+                                <StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                                        <TextBlock Text="当前安装" FontSize="12" Foreground="{StaticResource MutedBrush}" />
+                                        <TextBlock x:Name="InstalledPackageText" Grid.Column="1" HorizontalAlignment="Right"
+                                                   FontSize="11" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis" />
+                                    </Grid>
+                                    <TextBlock x:Name="InstalledVersionText" Text="正在读取..." FontSize="18" FontWeight="SemiBold"
+                                               Margin="0,6,0,0" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="2" Padding="10" Background="White" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="6">
+                                <StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                                        <TextBlock Text="候选安装包" FontSize="12" Foreground="{StaticResource MutedBrush}" />
+                                        <TextBlock x:Name="CandidateUrlText" Grid.Column="1" HorizontalAlignment="Right"
+                                                   FontSize="11" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis" />
+                                    </Grid>
+                                    <TextBlock x:Name="CandidateText" Text="还没有检查更新" FontSize="17" FontWeight="SemiBold"
+                                               Margin="0,6,0,0" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                        <Border Padding="10,6" Margin="0,10,0,0" Background="#EFF3ED" BorderBrush="#DCE4DA" BorderThickness="1" CornerRadius="6">
+                            <TextBlock x:Name="ComparisonText" Text="检查更新后显示版本对比。" FontSize="12"
+                                       TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" />
+                        </Border>
                     </StackPanel>
-                    <Button x:Name="ChooseDownloadFolderButton"
-                            Grid.Column="2"
-                            Content="更改位置"
-                            MinHeight="38"
-                            VerticalAlignment="Top"
-                            Click="ChooseDownloadFolderButton_Click" />
+
+                    <StackPanel x:Name="SettingsSection" Grid.Row="1" Grid.ColumnSpan="3" Margin="0,12,0,0">
+                        <Grid>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <TextBlock Text="安装包下载位置" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" />
+                            <Button x:Name="ChooseDownloadFolderButton" Grid.Column="1" Content="更改位置" MinHeight="32" Padding="10,4"
+                                    Style="{StaticResource SecondaryButtonStyle}" Click="ChooseDownloadFolderButton_Click" />
+                            <Button x:Name="OpenDownloadFolderButton" Grid.Column="2" MinHeight="32" Width="36" Margin="8,0,0,0" Padding="0"
+                                    Style="{StaticResource SecondaryButtonStyle}" ToolTip="打开下载目录" AutomationProperties.Name="打开下载目录"
+                                    Click="OpenDownloadFolderButton_Click">
+                                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE838;" FontSize="17" />
+                            </Button>
+                            <TextBlock x:Name="DownloadDirectoryText" Grid.Row="1" Grid.ColumnSpan="3" Margin="0,5,0,0"
+                                       FontSize="12" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"
+                                       TextTrimming="CharacterEllipsis" MaxHeight="34" />
+                        </Grid>
+                        <Grid Margin="0,10,0,0">
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="10" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                            <TextBlock Grid.ColumnSpan="3" Text="安装包架构" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,6" />
+                            <RadioButton x:Name="X64RadioButton" Grid.Row="1" GroupName="Architecture" IsChecked="True" Content="x64"
+                                         MinHeight="36" Padding="12,5" Style="{StaticResource SegmentRadioButtonStyle}" Checked="ArchitectureRadio_Checked" />
+                            <RadioButton x:Name="Arm64RadioButton" Grid.Row="1" Grid.Column="2" GroupName="Architecture" Content="arm64"
+                                         MinHeight="36" Padding="12,5" Style="{StaticResource SegmentRadioButtonStyle}" Checked="ArchitectureRadio_Checked" />
+                        </Grid>
+                    </StackPanel>
                 </Grid>
+            </ScrollViewer>
 
-                <StackPanel Grid.Row="8">
-                    <TextBlock Text="安装包架构"
-                               FontWeight="SemiBold"
-                               FontSize="13"
-                               Foreground="{StaticResource MutedBrush}" />
-                    <Grid Margin="0,7,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="10" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <RadioButton x:Name="X64RadioButton"
-                                     Grid.Column="0"
-                                     GroupName="Architecture"
-                                     IsChecked="True"
-                                     Style="{StaticResource SegmentRadioButtonStyle}"
-                                     Checked="ArchitectureRadio_Checked">
-                            <StackPanel>
-                                <TextBlock Text="x64"
-                                           FontSize="15"
-                                           FontWeight="SemiBold"
-                                           HorizontalAlignment="Center" />
-                                <TextBlock Text="默认推荐"
-                                           Margin="0,2,0,0"
-                                           FontSize="11"
-                                           HorizontalAlignment="Center" />
-                            </StackPanel>
-                        </RadioButton>
-                        <RadioButton x:Name="Arm64RadioButton"
-                                     Grid.Column="2"
-                                     GroupName="Architecture"
-                                     Style="{StaticResource SegmentRadioButtonStyle}"
-                                     Checked="ArchitectureRadio_Checked">
-                            <StackPanel>
-                                <TextBlock Text="arm64"
-                                           FontSize="15"
-                                           FontWeight="SemiBold"
-                                           HorizontalAlignment="Center" />
-                                <TextBlock Text="ARM 设备"
-                                           Margin="0,2,0,0"
-                                           FontSize="11"
-                                           HorizontalAlignment="Center" />
-                            </StackPanel>
-                        </RadioButton>
-                    </Grid>
-                </StackPanel>
-
-                <StackPanel Grid.Row="9"
-                            VerticalAlignment="Bottom">
-                    <Button x:Name="CheckButton"
-                            Content="检查更新"
-                            Click="CheckButton_Click" />
-                    <Button x:Name="DownloadButton"
-                            Content="下载 MSIX"
-                            Margin="0,9,0,0"
-                            IsEnabled="False"
-                            Click="DownloadButton_Click" />
-                    <Button x:Name="InstallButton"
-                            Content="安装 / 更新 Codex"
-                            Margin="0,9,0,0"
-                            IsEnabled="False"
-                            Click="InstallButton_Click" />
-                    <Button x:Name="AdvancedOptionsButton"
-                            Content="高级选项"
-                            Margin="0,9,0,0"
-                            Background="#FFFFFF"
-                            Foreground="{StaticResource AccentBrush}"
-                            Click="AdvancedOptionsButton_Click" />
-                    <ProgressBar x:Name="Progress"
-                                 Margin="0,13,0,0"
-                                 Height="10"
-                                 Minimum="0"
-                                 Maximum="100"
-                                 Value="0" />
-                    <TextBlock x:Name="StatusText"
-                               Text="准备就绪。"
-                               Margin="0,9,0,0"
-                               FontSize="13"
-                               Foreground="{StaticResource MutedBrush}"
-                               TextWrapping="Wrap" />
-                </StackPanel>
-
-                <TextBlock x:Name="FooterText"
-                           Grid.Row="10"
-                           Text="ProductId: 9PLM9XGG6VKS - x64 - 仅 MSIX"
-                           Foreground="{StaticResource MutedBrush}"
-                           FontSize="12" />
+            <Grid x:Name="HistorySection" Grid.Row="1" Margin="0,12,0,0">
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                <TextBlock x:Name="HistoryHeading" Text="操作记录" FontSize="12" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,6" />
+                <TextBox x:Name="OperationLogText" Grid.Row="1" IsReadOnly="True" TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                         Background="Transparent" BorderThickness="0" Padding="0" FontSize="12"
+                         Foreground="{StaticResource MutedBrush}" AutomationProperties.Name="操作记录" />
             </Grid>
+        </Grid>
+
+        <Border Grid.Row="2" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="0,10,0,0" Margin="0,10,0,0">
+            <StackPanel>
+                <Grid x:Name="FooterCommands">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition x:Name="CommandsLeadingColumn" Width="*" />
+                        <ColumnDefinition x:Name="CommandsGapColumn" Width="0" />
+                        <ColumnDefinition x:Name="CommandsTrailingColumn" Width="0" />
+                    </Grid.ColumnDefinitions>
+                    <Grid x:Name="PrimaryActions" Grid.ColumnSpan="3">
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition /><ColumnDefinition Width="10" /><ColumnDefinition />
+                            <ColumnDefinition x:Name="PrimaryThirdGap" Width="0" />
+                            <ColumnDefinition x:Name="PrimaryThirdColumn" Width="0" />
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="CheckButton" Content="检查更新" MinHeight="38" Click="CheckButton_Click" />
+                        <Button x:Name="DownloadButton" Grid.Column="2" Content="下载安装包" MinHeight="38" IsEnabled="False" Click="DownloadButton_Click" />
+                        <Button x:Name="InstallButton" Grid.Row="1" Grid.ColumnSpan="5" Content="安装 / 更新 Codex"
+                                MinHeight="38" Margin="0,8,0,0" IsEnabled="False" Click="InstallButton_Click" />
+                    </Grid>
+                    <Grid x:Name="SecondaryActions" Grid.Row="1" Grid.ColumnSpan="3" Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="10" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                        <Button x:Name="LocalPackageButton" Content="选择本地安装包" MinHeight="36" MinWidth="132"
+                                Style="{StaticResource SecondaryButtonStyle}" Click="LocalPackageButton_Click" />
+                        <Button x:Name="AdvancedOptionsButton" Grid.Column="2" Content="高级选项" MinHeight="36" MinWidth="100"
+                                Style="{StaticResource SecondaryButtonStyle}" Click="AdvancedOptionsButton_Click" />
+                    </Grid>
+                </Grid>
+                <Grid Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="8" /><ColumnDefinition Width="30" /></Grid.ColumnDefinitions>
+                    <ProgressBar x:Name="Progress" Height="8" Minimum="0" Maximum="100" />
+                    <Button x:Name="CancelButton" Grid.Column="2" Width="30" Height="28" MinHeight="28" IsEnabled="False" Padding="0"
+                            Style="{StaticResource SecondaryButtonStyle}" ToolTip="取消当前操作" AutomationProperties.Name="取消当前操作" Click="CancelButton_Click">
+                        <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE711;" FontSize="12" />
+                    </Button>
+                </Grid>
+                <TextBlock x:Name="StatusText" Text="准备就绪。" FontSize="12" Foreground="{StaticResource MutedBrush}"
+                           TextWrapping="Wrap" TextTrimming="CharacterEllipsis" Height="30" Margin="0,4,0,0" />
+                <TextBlock x:Name="FooterText" Text="x64 · Retail · 当前用户安装" FontSize="11" Foreground="{StaticResource MutedBrush}" />
+            </StackPanel>
         </Border>
     </Grid>
 </Window>

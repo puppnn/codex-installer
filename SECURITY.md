@@ -16,6 +16,13 @@ Codex Installer is an independent community project. It is not an official OpenA
 - The bundled WebView2 Evergreen Bootstrapper is pinned by SHA-256 and must have a valid Microsoft signature before execution.
 - Package installation runs as the current Windows user through an absolute system PowerShell path and an encoded command. The application does not request elevation.
 - Generic mode does not automatically terminate applications. A package-in-use error is shown verbatim so the user can close the relevant application and retry.
+- Local-package mode requires explicit file selection and installation confirmation. It validates Windows signatures, manifest identity, host architecture, minimum Windows version, dependencies, and the installed application version. It does not claim Microsoft Store metadata verification for user-selected local files.
+- Bundle container versions are used to match downloaded artifacts; the selected payload's application version is used to prevent downgrades. Bundle payload selection for installation follows the host architecture.
+- Network requests validate each redirect before connecting to the next host. Downloads enforce a total deadline, a read-idle timeout, and the remaining installation-plan byte limit.
+- Required local dependencies are matched by package family, publisher, architecture, and application version. Optional framework dependencies do not block installation.
+- Codex process shutdown requires user confirmation and restricts selection to the current desktop session and the installed package directory, or older directories in the same package store with the verified Codex package family. Process handles are retained before shutdown; unrelated process names and child processes are not selected by name.
+
+The embedded WebView2 installer pin is stored in `src/CodexUpdater.App/Vendor/WebView2Bootstrapper.json`. Build and runtime verification read the same pin. Its URL identifies a specific Microsoft file, rather than a moving latest-version redirect.
 
 ## Unsupported content
 

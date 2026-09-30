@@ -5,6 +5,12 @@ namespace CodexUpdater.App;
 public partial class RgAdguardProgressWindow : Window
 {
     private bool _ownerEventsAttached;
+    public event EventHandler? CancelRequested;
+
+    private void CancelButton_Click(object sender, RoutedEventArgs e)
+    {
+        CancelRequested?.Invoke(this, EventArgs.Empty);
+    }
 
     public RgAdguardProgressWindow()
     {

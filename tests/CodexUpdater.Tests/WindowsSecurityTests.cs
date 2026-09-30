@@ -66,6 +66,47 @@ public sealed class WindowsSecurityTests
     }
 
     [Fact]
+    public async Task PowerShellRunner_PreservesChineseAndSuppressesProgressXml()
+    {
+        var result = await PowerShellRunner.RunAsync("Write-Progress -Activity '正在安装' -PercentComplete 50; Write-Output '中文路径和错误提示'");
+        Assert.True(result.Succeeded, result.StandardError);
+        Assert.Equal("中文路径和错误提示", result.StandardOutput);
+        Assert.DoesNotContain("CLIXML", result.StandardError);
+        Assert.DoesNotContain("<Objs", result.StandardError);
+    }
+
+    [Fact]
+    public async Task PowerShellRunner_StopsOnNonTerminatingError()
+    {
+        var result = await PowerShellRunner.RunAsync("Write-Error '测试安装失败 0x80073D02'; Write-Output 'must-not-run'");
+        Assert.False(result.Succeeded);
+        Assert.Contains("测试安装失败", result.StandardError);
+        Assert.DoesNotContain("must-not-run", result.StandardOutput);
+        Assert.DoesNotContain("CLIXML", result.StandardError);
+    }
+
+    [Fact]
+    public async Task LocalPackage_RejectsUnsignedFile()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.msix");
+        await File.WriteAllTextAsync(path, "unsigned fixture");
+        try
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() => PackageInstallationService.InspectLocalAsync(path, CancellationToken.None));
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public void EmbeddedBootstrapperPin_MatchesTheEmbeddedInstaller()
+    {
+        using var installer = typeof(PowerShellRunner).Assembly.GetManifestResourceStream("MicrosoftEdgeWebview2Setup.exe");
+        if (installer is null) return;
+        var actual = Convert.ToHexString(SHA256.HashData(installer));
+        Assert.Equal(WebView2RuntimeService.ReadEmbeddedInstallerHash(), actual, ignoreCase: true);
+    }
+
+    [Fact]
     public void WindowsPackageIdentityService_ComputesKnownCodexFamilyName()
     {
         var identity = new PackageArtifactIdentity(

@@ -63,17 +63,43 @@ public sealed class PackageArtifactInspectorTests
         }
     }
 
-    private static byte[] CreateBundle(string payloadName = Name)
+    [Fact]
+    public void InspectBundle_PreservesSeparateContainerAndApplicationVersions()
+    {
+        var path = WriteTemporaryPackage(CreateBundle(bundleVersion: "2026.9.30.0", payloadVersion: "1.0.0.0"), ".msixbundle");
+        try
+        {
+            var identity = PackageArtifactInspector.Inspect(path, StorePackageFormat.MsixBundle, "x64");
+            Assert.Equal(new Version(2026, 9, 30, 0), identity.Version);
+            Assert.Equal(new Version(1, 0, 0, 0), identity.ApplicationVersion);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public void Inspect_ReadsOptionalDependenciesAndWindowsRequirement()
+    {
+        var path = WriteTemporaryPackage(CreatePackage("x64", "Contoso.Optional", optional: true), ".msix");
+        try
+        {
+            var identity = PackageArtifactInspector.Inspect(path, StorePackageFormat.Msix, "x64");
+            Assert.True(Assert.Single(identity.Dependencies).IsOptional);
+            Assert.Equal(new Version(10, 0, 19041, 0), identity.MinimumWindowsVersion);
+        }
+        finally { File.Delete(path); }
+    }
+
+    private static byte[] CreateBundle(string payloadName = Name, string bundleVersion = "2.0.0.0", string payloadVersion = "2.0.0.0")
     {
         using var output = new MemoryStream();
         using (var archive = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
         {
-            WriteEntry(archive, "x64.msix", CreatePackage("x64", "X64.Framework", payloadName));
-            WriteEntry(archive, "arm64.msix", CreatePackage("arm64", "Arm.Framework", payloadName));
+            WriteEntry(archive, "x64.msix", CreatePackage("x64", "X64.Framework", payloadName, payloadVersion));
+            WriteEntry(archive, "arm64.msix", CreatePackage("arm64", "Arm.Framework", payloadName, payloadVersion));
             WriteEntry(archive, "AppxMetadata/AppxBundleManifest.xml", $"""
                 <?xml version="1.0" encoding="utf-8"?>
                 <Bundle xmlns="http://schemas.microsoft.com/appx/2013/bundle">
-                  <Identity Name="{Name}" Publisher="{Escape(Publisher)}" Version="2.0.0.0" />
+                  <Identity Name="{Name}" Publisher="{Escape(Publisher)}" Version="{bundleVersion}" />
                   <Packages>
                     <Package Type="application" Architecture="x64" FileName="x64.msix" />
                     <Package Type="application" Architecture="arm64" FileName="arm64.msix" />
@@ -88,7 +114,9 @@ public sealed class PackageArtifactInspectorTests
     private static byte[] CreatePackage(
         string architecture,
         string dependencyName,
-        string packageName = Name)
+        string packageName = Name,
+        string version = "2.0.0.0",
+        bool optional = false)
     {
         using var output = new MemoryStream();
         using (var archive = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
@@ -98,12 +126,15 @@ public sealed class PackageArtifactInspectorTests
                 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10">
                   <Identity Name="{packageName}"
                             Publisher="{Escape(Publisher)}"
-                            Version="2.0.0.0"
+                            Version="{version}"
                             ProcessorArchitecture="{architecture}" />
                   <Dependencies>
+                    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" />
                     <PackageDependency Name="{dependencyName}"
                                        Publisher="CN=Dependency Publisher"
-                                       MinVersion="14.0.0.0" />
+                                       MinVersion="14.0.0.0"
+                                       xmlns:uap6="http://schemas.microsoft.com/appx/manifest/uap/windows10/6"
+                                       uap6:Optional="{optional.ToString().ToLowerInvariant()}" />
                   </Dependencies>
                 </Package>
                 """);

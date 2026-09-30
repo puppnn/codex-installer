@@ -1,4 +1,7 @@
 using System.Diagnostics;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Json;
 using CodexUpdater.Core;
 
@@ -6,9 +9,13 @@ namespace CodexUpdater.App;
 
 internal static class CodexSystemService
 {
-    public static async Task<InstalledCodex?> GetInstalledAsync()
+    public static async Task<InstalledCodex?> GetInstalledAsync(CancellationToken cancellationToken = default)
     {
-        var installed = await GetInstalledPackageAsync("OpenAI.Codex");
+        var installed = (await GetInstalledPackagesAsync("OpenAI.Codex", cancellationToken))
+            .Where(package => package.PackageFamilyName.Equals(
+                $"{CodexPackage.PackagePrefix}_{CodexPackage.PublisherId}", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(package => package.Version)
+            .FirstOrDefault();
         if (installed is null)
         {
             return null;
@@ -30,14 +37,25 @@ internal static class CodexSystemService
     }
 
     public static async Task<IReadOnlyList<InstalledStorePackage>> GetInstalledPackagesAsync(
-        string identityName)
+        string identityName,
+        CancellationToken cancellationToken = default)
     {
         var escapedName = EscapePowerShellLiteral(identityName);
         var command =
             $"Get-AppxPackage -Name '{escapedName}' | " +
             "Select-Object Name,PackageFullName,PackageFamilyName,Publisher,Version,Architecture,InstallLocation | " +
             "ConvertTo-Json -Compress";
-        var result = await PowerShellRunner.RunAsync(command);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(30));
+        ProcessRunResult result;
+        try
+        {
+            result = await PowerShellRunner.RunAsync(command, timeout.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException("读取已安装应用超时，请检查 Windows 应用部署服务后重试。");
+        }
         if (!result.Succeeded)
         {
             var detail = string.IsNullOrWhiteSpace(result.StandardError)
@@ -78,33 +96,63 @@ internal static class CodexSystemService
         return packages;
     }
 
-    public static IReadOnlyList<Process> FindRunningCodexProcesses()
+    public static IReadOnlyList<Process> FindRunningCodexProcesses(string? installLocation = null)
     {
+        if (string.IsNullOrWhiteSpace(installLocation)) return [];
+        var packageDirectory = Path.GetFullPath(installLocation).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var packageStore = Directory.GetParent(packageDirectory.TrimEnd(Path.DirectorySeparatorChar))?.FullName + Path.DirectorySeparatorChar;
+        using var currentProcess = Process.GetCurrentProcess();
+        var sessionId = currentProcess.SessionId;
         var currentId = Environment.ProcessId;
         return Process.GetProcesses()
             .Where(process =>
             {
                 try
                 {
-                    return process.Id != currentId &&
-                        string.Equals(process.ProcessName, "Codex", StringComparison.OrdinalIgnoreCase);
+                    var matches = process.Id != currentId && process.SessionId == sessionId &&
+                        process.MainModule?.FileName is { } fileName &&
+                        (fileName.StartsWith(packageDirectory, StringComparison.OrdinalIgnoreCase) ||
+                         (fileName.StartsWith(packageStore, StringComparison.OrdinalIgnoreCase) && IsCodexPackageProcess(process)));
+                    if (matches)
+                    {
+                        _ = process.Handle;
+                        _ = process.StartTime;
+                        matches = !process.HasExited;
+                    }
+                    if (!matches) process.Dispose();
+                    return matches;
                 }
                 catch
                 {
+                    process.Dispose();
                     return false;
                 }
             })
             .ToArray();
     }
 
-    public static async Task CloseCodexAsync(IReadOnlyList<Process> processes)
+    private static bool IsCodexPackageProcess(Process process)
+    {
+        uint length = 0;
+        if (GetPackageFamilyName(process.Handle, ref length, null) != 122 || length is 0 or > 512) return false;
+        var family = new StringBuilder((int)length);
+        return GetPackageFamilyName(process.Handle, ref length, family) == 0 &&
+            family.ToString().Equals($"{CodexPackage.PackagePrefix}_{CodexPackage.PublisherId}", StringComparison.OrdinalIgnoreCase);
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetPackageFamilyName(IntPtr process, ref uint length, StringBuilder? familyName);
+
+    public static async Task CloseCodexAsync(IReadOnlyList<Process> processes, CancellationToken cancellationToken = default)
     {
         foreach (var process in processes)
         {
             try
             {
-                process.CloseMainWindow();
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!HasExited(process)) process.CloseMainWindow();
             }
+            catch (OperationCanceledException) { throw; }
             catch
             {
                 // The process may already have exited or may not expose a main window.
@@ -115,19 +163,29 @@ internal static class CodexSystemService
         while (DateTimeOffset.UtcNow < deadline)
         {
             if (processes.All(HasExited)) return;
-            await Task.Delay(300);
+            await Task.Delay(300, cancellationToken);
         }
 
         foreach (var process in processes.Where(process => !HasExited(process)))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                process.Kill(entireProcessTree: true);
+                process.Kill();
             }
             catch
             {
                 // Installation will report a precise package-in-use error if closing failed.
             }
+        }
+        try
+        {
+            await Task.WhenAll(processes.Where(process => !HasExited(process)).Select(process => process.WaitForExitAsync(cancellationToken)))
+                .WaitAsync(TimeSpan.FromSeconds(3), cancellationToken);
+        }
+        catch (TimeoutException)
+        {
+            // Windows deployment returns the package-in-use error if a process still holds files.
         }
     }
 

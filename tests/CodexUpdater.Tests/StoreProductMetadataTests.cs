@@ -61,6 +61,18 @@ public sealed class StoreProductMetadataTests
             StoreProductMetadataParser.Parse("<html></html>", "9PLM9XGG6VKS"));
     }
 
+    [Theory]
+    [InlineData("window.pageMetadata=", "0")]
+    [InlineData("window.pageMetadata  =\n", "\"Free\"")]
+    public void Parse_AcceptsWhitespaceChangesAndUnknownPriceText(string marker, string price)
+    {
+        var html = marker + "{\"installer\":{\"id\":\"9PLM9XGG6VKS\",\"type\":\"WindowsUpdate\"}," +
+            "\"allowedPlatforms\":[\"Windows.Desktop\"],\"packageFamilyNames\":[\"OpenAI.Codex_2p2nqsd0c76g0\"],\"price\":" + price + "};";
+        var product = StoreProductMetadataParser.Parse(html, "9PLM9XGG6VKS");
+        Assert.Equal("9PLM9XGG6VKS", product.ProductId);
+        Assert.Equal(price == "0" ? true : (bool?)null, product.IsFree);
+    }
+
     private static string Html(object metadata)
     {
         return $"<html><script>window.pageMetadata = {JsonSerializer.Serialize(metadata)};</script></html>";

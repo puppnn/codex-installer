@@ -1,0 +1,48 @@
+<Window x:Class="CodexUpdater.App.LocalPackageWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="本地安装包" Width="760" Height="630" MinWidth="520" MinHeight="440"
+        Background="{StaticResource PanelBrush}" Foreground="{StaticResource InkBrush}"
+        FontFamily="Microsoft YaHei UI, Segoe UI">
+    <Grid Margin="20" Background="{StaticResource PanelBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <TextBlock Text="本地安装包" FontSize="22" FontWeight="Bold" />
+        <Grid Grid.Row="1" Margin="0,14,0,0">
+            <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="12" /><ColumnDefinition Width="120" /></Grid.ColumnDefinitions>
+            <TextBox x:Name="PackagePathText" IsReadOnly="True" Padding="8" VerticalContentAlignment="Center" />
+            <Button x:Name="SelectPackageButton" Grid.Column="2" Content="选择安装包" Click="SelectPackageButton_Click" />
+        </Grid>
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Margin="0,16,0,12">
+            <StackPanel>
+                <TextBlock x:Name="PackageNameText" Text="尚未选择" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock x:Name="PackageIdentityText" Margin="0,8,0,0" FontSize="13" TextWrapping="Wrap" />
+                <TextBlock Text="签名发布者" Margin="0,14,0,4" FontSize="12" Foreground="{StaticResource MutedBrush}" />
+                <TextBox x:Name="PublisherText" IsReadOnly="True" TextWrapping="Wrap" Padding="8" />
+                <TextBlock Text="依赖包" Margin="0,16,0,8" FontWeight="SemiBold" />
+                <StackPanel Orientation="Horizontal">
+                    <Button x:Name="AddDependenciesButton" Content="添加本地依赖" MinHeight="34" Style="{StaticResource SecondaryButtonStyle}" Click="AddDependenciesButton_Click" />
+                    <Button x:Name="ClearDependenciesButton" Content="清空" MinHeight="34" Margin="8,0,0,0" Style="{StaticResource SecondaryButtonStyle}" Click="ClearDependenciesButton_Click" />
+                </StackPanel>
+                <ItemsControl x:Name="DependenciesList" Margin="0,8,0,0">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap" FontSize="12" Margin="0,4,0,0" /></DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+        <StackPanel Grid.Row="3">
+            <TextBlock x:Name="StatusText" Text="请选择安装包。" TextWrapping="Wrap" MaxHeight="60" FontSize="12" Margin="0,0,0,10" />
+            <ProgressBar x:Name="Progress" Height="8" Margin="0,0,0,12" />
+            <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="12" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
+                <Button x:Name="InstallButton" Content="安装所选包" IsEnabled="False" Click="InstallButton_Click" />
+                <Button x:Name="CancelOperationButton" Grid.Column="2" Content="取消" IsEnabled="False" Style="{StaticResource SecondaryButtonStyle}" Click="CancelOperationButton_Click" />
+            </Grid>
+        </StackPanel>
+    </Grid>
+</Window>

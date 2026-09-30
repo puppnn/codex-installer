@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Microsoft Store 高级下载安装"
         Width="1040"
-        Height="780"
+        Height="740"
         MinWidth="900"
-        MinHeight="700"
+        MinHeight="600"
         Background="#E7EBE4"
         FontFamily="Microsoft YaHei UI, Segoe UI"
         Foreground="{StaticResource InkBrush}">
@@ -98,7 +98,7 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="10" />
-                        <ColumnDefinition Width="100" />
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="22" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="10" />
@@ -108,11 +108,15 @@
                         <TextBlock Text="安装包下载位置" FontSize="11" Foreground="{StaticResource MutedBrush}" />
                         <TextBlock x:Name="DownloadDirectoryText" Text="" FontSize="12" TextTrimming="CharacterEllipsis" />
                     </StackPanel>
-                    <Button x:Name="ChooseFolderButton"
-                            Grid.Column="2"
-                            Content="更改位置"
-                            MinHeight="36"
-                            Click="ChooseFolderButton_Click" />
+                    <StackPanel Grid.Column="2" Orientation="Horizontal">
+                        <Button x:Name="ChooseFolderButton" Content="更改位置" MinHeight="36" Click="ChooseFolderButton_Click" />
+                        <Button x:Name="OpenDownloadFolderButton" Width="36" MinHeight="36" Margin="8,0,0,0"
+                                Padding="0"
+                                ToolTip="打开下载目录" AutomationProperties.Name="打开下载目录"
+                                Style="{StaticResource SecondaryButtonStyle}" Click="OpenDownloadFolderButton_Click">
+                            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE838;" FontSize="17" />
+                        </Button>
+                    </StackPanel>
                     <TextBlock Grid.Column="4"
                                Text="架构筛选"
                                VerticalAlignment="Center"
@@ -144,7 +148,7 @@
                           GridLinesVisibility="Horizontal"
                           SelectionChanged="CandidatesGrid_SelectionChanged">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="文件名" Binding="{Binding FileName}" Width="300">
+                        <DataGridTextColumn Header="文件名" Binding="{Binding FileName}" Width="*" MinWidth="150">
                             <DataGridTextColumn.ElementStyle>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="TextTrimming" Value="CharacterEllipsis" />
@@ -204,13 +208,15 @@
                             Click="DownloadInstallButton_Click" />
                     <ProgressBar x:Name="Progress"
                                  Grid.Row="2"
-                                 Grid.ColumnSpan="2"
+                                 Grid.ColumnSpan="3"
                                  Height="9"
                                  Minimum="0"
                                  Maximum="100" />
                     <TextBlock x:Name="StatusText"
                                Grid.Row="4"
-                               Grid.ColumnSpan="2"
+                               Grid.ColumnSpan="3"
+                               MaxHeight="48"
+                               TextTrimming="CharacterEllipsis"
                                Text="准备就绪。"
                                FontSize="12"
                                Foreground="{StaticResource MutedBrush}"
