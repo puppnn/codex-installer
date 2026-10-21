@@ -1,0 +1,14 @@
+<UserControl x:Class="CodexUpdater.App.DownloadRouteSelector"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Margin="0,8,0,0">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="12" /><ColumnDefinition /></Grid.ColumnDefinitions>
+        <TextBlock Text="下载线路" FontSize="12" VerticalAlignment="Center" />
+        <ComboBox x:Name="RouteBox" Grid.Column="2" MinHeight="30" VerticalContentAlignment="Center"
+                  SelectionChanged="RouteBox_SelectionChanged" ToolTip="仅影响安装包下载，不修改系统代理或 Clash。">
+            <ComboBoxItem Content="自动（直连优先）" />
+            <ComboBoxItem Content="仅 IPv4 直连" />
+            <ComboBoxItem Content="系统代理" />
+        </ComboBox>
+    </Grid>
+</UserControl>

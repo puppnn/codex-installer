@@ -4,7 +4,7 @@ using CodexUpdater.Core;
 
 namespace CodexUpdater.App;
 
-internal sealed record UserSettings(string DownloadDirectory)
+internal sealed record UserSettings(string DownloadDirectory, DownloadRoute DownloadRoute = DownloadRoute.Auto)
 {
     private static string SettingsDirectory =>
         Path.Combine(
@@ -28,7 +28,7 @@ internal sealed record UserSettings(string DownloadDirectory)
                 return Default();
             }
 
-            return settings;
+            return Enum.IsDefined(settings.DownloadRoute) ? settings : settings with { DownloadRoute = DownloadRoute.Auto };
         }
         catch
         {

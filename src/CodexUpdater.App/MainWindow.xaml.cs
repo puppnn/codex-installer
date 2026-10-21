@@ -34,6 +34,7 @@ public partial class MainWindow : Window
         _commandLine = commandLine;
         _settings = UserSettings.Load();
         InitializeComponent();
+        RouteSelector.SetRoute(_settings.DownloadRoute);
         WindowLayout.FitToWorkArea(this);
         Loaded += MainWindow_Loaded;
         Closing += MainWindow_Closing;
@@ -126,6 +127,7 @@ public partial class MainWindow : Window
         if (_operation is not null) return;
         new AdvancedStoreWindow { Owner = this }.ShowDialog();
         _settings = UserSettings.Load();
+        RouteSelector.SetRoute(_settings.DownloadRoute);
         UpdateDownloadDirectoryText();
         await RunUiActionAsync(RefreshInstalledVersionAsync);
     }
@@ -350,6 +352,7 @@ public partial class MainWindow : Window
     {
         if (CheckButton is null || LocalPackageButton is null) return;
         var busy = _operation is not null;
+        RouteSelector.IsEnabled = !busy;
         X64RadioButton.IsEnabled = Arm64RadioButton.IsEnabled = !busy;
         ChooseDownloadFolderButton.IsEnabled = CheckButton.IsEnabled = !busy;
         AdvancedOptionsButton.IsEnabled = LocalPackageButton.IsEnabled = !busy;
@@ -365,6 +368,21 @@ public partial class MainWindow : Window
         StatusText.Text = message;
         StatusText.ToolTip = message;
         RecordStatus(message);
+    }
+
+    private void DownloadRoute_Changed(object? sender, EventArgs e)
+    {
+        try
+        {
+            var settings = _settings with { DownloadRoute = RouteSelector.SelectedRoute };
+            settings.Save();
+            _settings = settings;
+        }
+        catch (Exception ex)
+        {
+            RouteSelector.SetRoute(_settings.DownloadRoute);
+            ErrorDetailsWindow.ShowError(this, "无法保存下载线路", ex.Message, ex.Message);
+        }
     }
 
     private void RecordStatus(string message)

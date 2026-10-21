@@ -41,7 +41,9 @@ internal static class PackageDownloadService
         string targetArchitecture,
         IProgress<double> progress,
         CancellationToken cancellationToken = default,
-        long byteLimit = MaxPackageBytes)
+        long byteLimit = MaxPackageBytes,
+        DownloadRoute route = DownloadRoute.Auto,
+        IProgress<string>? status = null)
     {
         var expectedFamilies = new HashSet<string>(
             product.PackageFamilyNames,
@@ -54,7 +56,7 @@ internal static class PackageDownloadService
             progress,
             path => ValidateStorePackage(path, candidate, targetArchitecture, expectedFamilies, null),
             cancellationToken,
-            byteLimit);
+            byteLimit, route, status);
         return result.Validation with { FilePath = result.FilePath };
     }
 
@@ -65,7 +67,9 @@ internal static class PackageDownloadService
         string targetArchitecture,
         IProgress<double> progress,
         CancellationToken cancellationToken = default,
-        long byteLimit = MaxPackageBytes)
+        long byteLimit = MaxPackageBytes,
+        DownloadRoute route = DownloadRoute.Auto,
+        IProgress<string>? status = null)
     {
         var result = await DownloadAndValidateAsync(
             candidate.FileName,
@@ -75,7 +79,7 @@ internal static class PackageDownloadService
             progress,
             path => ValidateStorePackage(path, candidate, targetArchitecture, null, requirement),
             cancellationToken,
-            byteLimit);
+            byteLimit, route, status);
         return result.Validation with { FilePath = result.FilePath };
     }
 
@@ -235,7 +239,9 @@ internal static class PackageDownloadService
         IProgress<double> progress,
         Func<string, T> validator,
         CancellationToken cancellationToken,
-        long byteLimit = MaxPackageBytes)
+        long byteLimit = MaxPackageBytes,
+        DownloadRoute route = DownloadRoute.Auto,
+        IProgress<string>? status = null)
     {
         if (!CodexPackage.IsTrustedDownloadUrl(url))
         {
@@ -271,116 +277,26 @@ internal static class PackageDownloadService
             downloadsDirectory,
             $".{Path.GetFileNameWithoutExtension(fileName)}.{Guid.NewGuid():N}.download{Path.GetExtension(fileName)}");
 
-        using var handler = new HttpClientHandler
-        {
-            AllowAutoRedirect = false,
-        };
-        using var httpClient = new HttpClient(handler)
-        {
-            Timeout = TimeSpan.FromSeconds(45),
-        };
-        httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) CodexUpdater/1.1");
-
-        using var totalTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        totalTimeout.CancelAfter(TimeSpan.FromMinutes(30));
-        var token = totalTimeout.Token;
         try
         {
-            HttpResponseMessage? response = null;
-            var attemptUrls = BuildDownloadAttemptUrls(url);
-            for (var index = 0; index < attemptUrls.Count; index++)
+            await using (var destination = new FileStream(tempPath, FileMode.CreateNew, FileAccess.ReadWrite,
+                FileShare.None, 128 * 1024, useAsync: true))
             {
-                try
-                {
-                    response = await GetTrustedResponseAsync(httpClient, url, attemptUrls[index], token);
-                    response.EnsureSuccessStatusCode();
-                    break;
-                }
-                catch (HttpRequestException) when (index + 1 < attemptUrls.Count)
-                {
-                    response?.Dispose();
-                    response = null;
-                    progress.Report(0);
-                }
-                catch
-                {
-                    response?.Dispose();
-                    throw;
-                }
+                await PackageTransferService.DownloadAsync(url, destination, maximumBytes, route, progress, status, cancellationToken);
             }
-
-            using var successfulResponse = response
-                ?? throw new HttpRequestException("Microsoft 安装包下载请求失败。");
-
-            var finalUrl = successfulResponse.RequestMessage?.RequestUri?.AbsoluteUri;
-            if (string.IsNullOrWhiteSpace(finalUrl) || !IsAllowedFinalDownloadUrl(url, finalUrl))
+            cancellationToken.ThrowIfCancellationRequested();
+            status?.Report("下载完成，正在验证文件完整性和数字签名...");
+            var validation = await Task.Run(() =>
             {
-                throw new InvalidOperationException("安装包下载被重定向到非 Microsoft 地址，已停止下载。");
-            }
-
-            var totalBytes = successfulResponse.Content.Headers.ContentLength;
-            if (totalBytes > maximumBytes)
-            {
-                throw new InvalidOperationException("安装包超过单文件或本次安装计划的剩余大小上限。");
-            }
-
-            if (totalBytes is > 0)
-            {
-                var root = Path.GetPathRoot(Path.GetFullPath(downloadsDirectory))!;
-                if (!root.StartsWith(@"\\", StringComparison.Ordinal))
-                {
-                    var drive = new DriveInfo(root);
-                    if (drive.IsReady && drive.AvailableFreeSpace < totalBytes.Value + 16L * 1024 * 1024)
-                        throw new IOException("下载目录的可用磁盘空间不足。");
-                }
-            }
-
-            await using var source = await successfulResponse.Content.ReadAsStreamAsync(token);
-            await using (var destination = new FileStream(
-                tempPath,
-                FileMode.CreateNew,
-                FileAccess.Write,
-                FileShare.None,
-                bufferSize: 1024 * 128,
-                useAsync: true))
-            {
-                var buffer = new byte[1024 * 128];
-                long downloaded = 0;
-                using var readTimeout = CancellationTokenSource.CreateLinkedTokenSource(token);
-                while (true)
-                {
-                    readTimeout.CancelAfter(TimeSpan.FromSeconds(60));
-                    var read = await source.ReadAsync(buffer, readTimeout.Token);
-                    readTimeout.CancelAfter(Timeout.InfiniteTimeSpan);
-                    if (read == 0) break;
-
-                    downloaded += read;
-                    if (downloaded > maximumBytes)
-                    {
-                        throw new InvalidOperationException("安装包超过单文件或本次安装计划的剩余大小上限。");
-                    }
-
-                    await destination.WriteAsync(buffer.AsMemory(0, read), token);
-                    if (totalBytes is > 0)
-                    {
-                        progress.Report(downloaded * 100d / totalBytes.Value);
-                    }
-                }
-
-                await destination.FlushAsync(token);
-            }
-
-            token.ThrowIfCancellationRequested();
-            var validation = await Task.Run(() => validator(tempPath), token);
-            token.ThrowIfCancellationRequested();
+                if (expectedPageHash is { Length: 40 or 64 } && expectedPageHash.All(Uri.IsHexDigit) &&
+                    !MatchesExpectedPageHash(tempPath, expectedPageHash))
+                    throw new InvalidDataException("安装包哈希与查询结果不一致，已停止安装，请重新检查更新。");
+                return validator(tempPath);
+            }, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             File.Move(tempPath, targetPath, overwrite: true);
             progress.Report(100);
             return new DownloadResult<T>(targetPath, validation, false);
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            throw new TimeoutException("下载超时或连续 60 秒没有收到数据。请检查网络后重试。");
         }
         finally
         {

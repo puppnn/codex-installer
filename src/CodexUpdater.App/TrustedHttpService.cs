@@ -7,14 +7,17 @@ internal static class TrustedHttpService
 {
     // Callers must disable HttpClientHandler.AllowAutoRedirect so every hop is checked here.
     public static async Task<HttpResponseMessage> GetResponseAsync(
-        HttpClient client, Uri start, Func<Uri, bool> isAllowed, CancellationToken cancellationToken)
+        HttpClient client, Uri start, Func<Uri, bool> isAllowed, CancellationToken cancellationToken,
+        Action<HttpRequestMessage>? configureRequest = null)
     {
         var current = start;
         for (var redirects = 0; ; redirects++)
         {
             if (!isAllowed(current))
                 throw new InvalidOperationException("请求被重定向到非受信任地址，已停止连接。");
-            var response = await client.GetAsync(current, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            using var request = new HttpRequestMessage(HttpMethod.Get, current);
+            configureRequest?.Invoke(request);
+            var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             if (response.StatusCode is not (HttpStatusCode.MovedPermanently or HttpStatusCode.Found or
                 HttpStatusCode.SeeOther or HttpStatusCode.TemporaryRedirect or HttpStatusCode.PermanentRedirect))
                 return response;

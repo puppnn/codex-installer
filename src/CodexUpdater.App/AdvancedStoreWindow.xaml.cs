@@ -29,6 +29,7 @@ public partial class AdvancedStoreWindow : Window
         InitializeComponent();
         WindowLayout.FitToWorkArea(this);
         _settings = UserSettings.Load();
+        RouteSelector.SetRoute(_settings.DownloadRoute);
         CandidatesGrid.ItemsSource = _visibleCandidates;
         DependenciesList.ItemsSource = _dependencyPreview;
         DownloadDirectoryText.Text = _settings.DownloadDirectory;
@@ -271,6 +272,7 @@ public partial class AdvancedStoreWindow : Window
     private void SetBusy(bool busy)
     {
         _busy = busy;
+        RouteSelector.IsEnabled = !busy;
         ProductInputTextBox.IsEnabled = SearchButton.IsEnabled = ChooseFolderButton.IsEnabled = !busy;
         ArchitectureFilterComboBox.IsEnabled = CandidatesGrid.IsEnabled = !busy;
         CancelButton.IsEnabled = busy && !_installing;
@@ -290,6 +292,21 @@ public partial class AdvancedStoreWindow : Window
     {
         StatusText.Text = message;
         StatusText.ToolTip = message;
+    }
+
+    private void DownloadRoute_Changed(object? sender, EventArgs e)
+    {
+        try
+        {
+            var settings = _settings with { DownloadRoute = RouteSelector.SelectedRoute };
+            settings.Save();
+            _settings = settings;
+        }
+        catch (Exception ex)
+        {
+            RouteSelector.SetRoute(_settings.DownloadRoute);
+            ErrorDetailsWindow.ShowError(this, "无法保存下载线路", ex.Message, ex.Message);
+        }
     }
 
     private sealed class CandidateRow(StorePackageCandidate candidate, InstalledStorePackage? installed)

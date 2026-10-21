@@ -26,7 +26,7 @@ public sealed class WindowLayoutTests
                 ((TextBlock)main.FindName("CandidateUrlText")).Text = "x64 / MSIX";
                 ((TextBlock)main.FindName("DownloadDirectoryText")).Text = @"C:\Packages\Codex";
                 var mainActions = new[] { "CheckButton", "DownloadButton", "InstallButton", "LocalPackageButton", "AdvancedOptionsButton", "CancelButton", "FooterText", "StatusText" };
-                Render(main, 560, 600, "main", [.. mainActions, "OpenDownloadFolderButton"]);
+                Render(main, 560, 640, "main", [.. mainActions, "OpenDownloadFolderButton", "RouteSelector"]);
                 AssertMainReflow(main, wide: false, historyVisible: true);
                 Render(main, 420, 420, "main-short", mainActions);
                 AssertMainReflow(main, wide: false, historyVisible: false);

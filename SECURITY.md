@@ -24,6 +24,12 @@ Codex Installer is an independent community project. It is not an official OpenA
 
 The embedded WebView2 installer pin is stored in `src/CodexUpdater.App/Vendor/WebView2Bootstrapper.json`. Build and runtime verification read the same pin. Its URL identifies a specific Microsoft file, rather than a moving latest-version redirect.
 
+## Download routes and recovery
+
+Installer-only route preferences select IPv4 direct connections, the existing system/environment proxy, or automatic fallback. No system proxy, DNS, Clash configuration, or certificate policy is modified. The direct connector resolves addresses through the OS and retains the original hostname for TLS verification.
+
+Interrupted transfers retain bytes only within the current operation, with a strong ETag and known length. A resumed response must match the validator, range offset, final byte and total length. Ignored or mismatched ranges restart the download. Final hash (when supplied), signature and identity verification remain mandatory before installation. Cancellation and terminal failure remove temporary downloads; no persistent partial-file cache is created.
+
 ## Unsupported content
 
 - WPM, traditional Win32 EXE/MSI installers, encrypted packages, and large game installers are outside the supported scope.

@@ -14,15 +14,15 @@ Codex Installer is a Windows helper for downloading, installing, and updating th
 | 版本 | 获取方式 | 功能范围 |
 | --- | --- | --- |
 | 已发布稳定版 v1.1.0 | 上方 EXE 直链或 [Releases](https://github.com/puppnn/codex-installer/releases/latest) | Codex 下载更新、Microsoft Store 高级模式 |
-| 当前源码 v1.2.0 | [下载 main 源码](https://github.com/puppnn/codex-installer/archive/refs/heads/main.zip) 或 [GitHub Actions 构建产物](https://github.com/puppnn/codex-installer/actions/workflows/ci.yml) | 新增本地安装、打开下载目录、自适应布局和错误诊断 |
+| 当前源码 v1.2.1 | [下载 main 源码](https://github.com/puppnn/codex-installer/archive/refs/heads/main.zip) 或 [GitHub Actions 构建产物](https://github.com/puppnn/codex-installer/actions/workflows/ci.yml) | 下载线路选择、断流恢复、本地安装、自适应布局和错误诊断 |
 
-v1.2.0 尚未创建正式 Release。要直接体验本次更新，可在 Actions 中选择 **main 分支最新成功构建**，下载 Artifacts 中的 `CodexInstaller-win-x64`，解压后运行 EXE；下载 Actions 产物需要登录 GitHub。源码 ZIP 不包含编译好的 EXE，可按下方构建说明编译。
+v1.2.1 尚未创建正式 Release。要直接体验本次更新，可在 Actions 中选择 **main 分支最新成功构建**，下载 Artifacts 中的 `CodexInstaller-win-x64`，解压后运行 EXE；下载 Actions 产物需要登录 GitHub。源码 ZIP 不包含编译好的 EXE，可按下方构建说明编译。
 
 发布和 CI 生成的自包含 EXE 面向 Windows x64，无需预装 .NET。安装器中的 `arm64` 选项选择的是目标应用包架构；安装器本身仍是 x64 程序。
 
 以下使用说明和截图对应当前源码/CI 版。截图中的版本号和路径仅作演示。
 
-![Codex Installer v1.2 main window](docs/assets/app-main-v1.2.0.png)
+![Codex Installer v1.2.1 main window with download routes](docs/assets/app-main-v1.2.1.png)
 
 ## 解决的问题 / Problem
 
@@ -45,6 +45,18 @@ v1.2.0 尚未创建正式 Release。要直接体验本次更新，可在 Actions
 7. 点击 `安装 / 更新 Codex`，核对确认框。若 Codex 正在运行，请先保存工作；确认后程序会尝试关闭对应应用进程并安装。
 
 点击下载位置右侧的**文件夹按钮**即可打开下载目录。查询和下载可以取消；Windows 开始安装后会等待安装结果。
+
+### 下载线路（v1.2.1 源码）
+
+这些下载优化包含在 v1.2.1 源码及对应的成功 CI 构建中；旧 Release 和历史构建产物不包含它们。
+
+主界面和高级窗口均可选择“自动（直连优先）”“仅 IPv4 直连”“系统代理”。该选项仅作用于安装包传输；网页查询仍使用原有网络设置，不修改 Clash、系统代理或系统 DNS。
+
+- 自动模式先尝试 HTTPS 直连及系统代理；只有原始链接使用 HTTP 时才允许 HTTP 回退。
+- 直连通过本机 DNS 查询 IPv4 地址，为每个连接设置超时，不固定 CDN IP，也不关闭证书验证。
+- 下载中断后在当前操作内最多尝试 6 次连接。仅在服务器提供强 ETag、已知完整长度，且续传响应的 ETag、Content-Range 和长度一致时拼接已下载数据。
+- 服务器忽略 Range、文件标识变化或不支持可靠续传时从头下载；完整文件仍需通过页面哈希（如提供）、数字签名和包身份校验。
+- 取消、关闭程序或最终失败后清理临时文件；本版不承诺跨程序重启恢复未完成的下载。
 
 主界面会随窗口尺寸调整：窄窗口纵向排列，宽窗口将版本信息和下载设置分成双栏，并重排操作按钮。拉高窗口可以查看更多操作记录；窗口过矮时信息区可滚动，底部操作按钮保持可见。操作记录仅保存在当前会话内。
 
@@ -80,7 +92,7 @@ v1.2.0 尚未创建正式 Release。要直接体验本次更新，可在 Actions
 
 若应用显示使用 `WPM` 安装器，说明它实际分发的是 EXE/MSI 等 Win32 安装器，不能使用 `Add-AppxPackage`，本工具会停止该流程。
 
-![Microsoft Store advanced download window](docs/assets/app-advanced-v1.2.0.png)
+![Microsoft Store advanced download window with download routes](docs/assets/app-advanced-v1.2.1.png)
 
 ## 支持范围 / Scope
 
@@ -127,6 +139,17 @@ Add-AppxPackage -Path "主安装包路径" -DependencyPath @("依赖包路径")
 错误窗口提供中文摘要、可滚动详情和 `复制错误详情`。PowerShell 的 CLIXML 进度数据会被过滤，不再铺满整个弹窗。
 
 ## v1.2.0 更新 / What's New
+
+### v1.2.1 下载优化
+
+- 新增自动、IPv4 直连和系统代理三种下载线路，设置仅作用于安装器。
+- 处理响应提前结束、网络断流和读取超时，在当前操作中有限重试。
+- 使用强 ETag、完整长度和 Content-Range 验证续传响应；校验不一致时重新下载。
+- 完整文件继续进行哈希、数字签名及身份校验，取消或最终失败后清理临时文件。
+
+Version 1.2.1 adds installer-only route selection and bounded recovery for interrupted downloads. Partial bytes are resumed only with matching server validators and ranges. No Clash, system proxy, or system DNS configuration is changed. See [v1.2.1 notes](docs/releases/v1.2.1.md).
+
+### v1.2.0 功能
 
 当前 `main` 已包含：
 

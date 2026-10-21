@@ -1,6 +1,7 @@
 <Window x:Class="CodexUpdater.App.AdvancedStoreWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:CodexUpdater.App"
         Title="Microsoft Store 高级下载安装"
         Width="1040"
         Height="740"
@@ -95,6 +96,7 @@
                 </Border>
 
                 <Grid Grid.Row="6">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="10" />
@@ -133,6 +135,7 @@
                         <ComboBoxItem Content="arm64" Tag="arm64" />
                         <ComboBoxItem Content="全部" Tag="all" />
                     </ComboBox>
+                    <local:DownloadRouteSelector x:Name="RouteSelector" Grid.Row="1" Grid.ColumnSpan="7" RouteChanged="DownloadRoute_Changed" />
                 </Grid>
 
                 <DataGrid x:Name="CandidatesGrid"

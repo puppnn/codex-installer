@@ -21,6 +21,7 @@ internal static class PackagePlanService
         CancellationToken cancellationToken)
     {
         var available = candidates;
+        var route = UserSettings.Load().DownloadRoute;
         if (selected.IsExpired || candidates.Any(candidate => candidate.IsExpired))
         {
             progress.Report(new("临时链接已过期，正在重新查询..."));
@@ -40,22 +41,17 @@ internal static class PackagePlanService
                         percentage >= 100 ? $"正在验证安装包：{candidate.FileName}" : $"正在下载：{candidate.FileName}", percentage)));
                     return requirement is null
                         ? await PackageDownloadService.DownloadMainPackageAsync(
-                            candidate, product, directory, architecture, downloadProgress, cancellationToken, remainingBytes)
+                            candidate, product, directory, architecture, downloadProgress, cancellationToken, remainingBytes,
+                            route, new Progress<string>(message => progress.Report(new(message))))
                         : await PackageDownloadService.DownloadDependencyPackageAsync(
-                            candidate, requirement, directory, architecture, downloadProgress, cancellationToken, remainingBytes);
+                            candidate, requirement, directory, architecture, downloadProgress, cancellationToken, remainingBytes,
+                            route, new Progress<string>(message => progress.Report(new(message))));
                 }
                 catch (HttpRequestException ex) when (attempt == 0 && ex.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.Gone)
                 {
                     progress.Report(new("临时链接失效，正在重新查询一次..."));
                     available = await refreshCandidates(cancellationToken);
                     candidate = Rematch(candidate, available);
-                }
-                catch (HttpRequestException ex) when (attempt == 0 &&
-                    (ex.StatusCode is null or HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests ||
-                     (int?)ex.StatusCode >= 500))
-                {
-                    progress.Report(new("网络请求失败，正在重试一次..."));
-                    await Task.Delay(1500, cancellationToken);
                 }
             }
         }
