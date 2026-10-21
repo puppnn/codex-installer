@@ -44,7 +44,7 @@ public partial class AdvancedStoreWindow : Window
         e.Cancel = true;
         _closeAfterOperation = true;
         if (!_installing) _operationCancellation?.Cancel();
-        SetStatus(_installing ? "Windows 正在安装，完成后将关闭窗口。" : "正在取消并清理临时文件...");
+        SetStatus(_installing ? "Windows 正在安装，完成后将关闭窗口。" : "正在取消当前操作并保存有效的续传记录...");
     }
 
     private async void SearchButton_Click(object sender, RoutedEventArgs e) => await RunOperationAsync(SearchAsync);
@@ -256,7 +256,7 @@ public partial class AdvancedStoreWindow : Window
         SetBusy(true);
         Progress.Value = 0;
         try { await operation(cancellation.Token); }
-        catch (OperationCanceledException) { SetStatus("操作已取消，临时下载已清理。"); }
+        catch (OperationCanceledException) { SetStatus("操作已取消，可续传的下载缓存已保留。"); }
         catch (Exception ex)
         {
             SetStatus(ex.Message);

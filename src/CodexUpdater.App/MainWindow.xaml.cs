@@ -119,7 +119,7 @@ public partial class MainWindow : Window
         e.Cancel = true;
         _closeAfterOperation = true;
         if (!_isInstalling) _operation.Cancel();
-        SetStatus(_isInstalling ? "Windows 正在安装，完成后将关闭窗口。" : "正在取消并清理临时文件...");
+        SetStatus(_isInstalling ? "Windows 正在安装，完成后将关闭窗口。" : "正在取消当前操作并保存有效的续传记录...");
     }
 
     private async void AdvancedOptionsButton_Click(object sender, RoutedEventArgs e)
