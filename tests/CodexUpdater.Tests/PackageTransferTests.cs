@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using CodexUpdater.App;
+using CodexUpdater.Core;
 
 namespace CodexUpdater.Tests;
 
@@ -205,6 +206,68 @@ public sealed class PackageTransferTests
     }
 
     [Fact]
+    public async Task SavedResumeState_ContinuesExistingBytesWithIfRange()
+    {
+        var calls = 0;
+        using var output = Existing("abc");
+        await ResumeDownload(output, Resume("\"v1\"", 6), request =>
+        {
+            calls++;
+            Assert.Equal(3, request.Headers.Range!.Ranges.Single().From);
+            Assert.Equal("\"v1\"", request.Headers.IfRange!.EntityTag!.Tag);
+            return Response("def", 3, "\"v1\"", 3, 6);
+        });
+        Assert.Equal("abcdef", System.Text.Encoding.UTF8.GetString(output.ToArray()));
+        Assert.Equal(1, calls);
+    }
+
+    [Fact]
+    public async Task SavedResumeState_RestartsAndReportsNewValidatorWhenServerFileChanged()
+    {
+        var validators = new List<(string?, long?)>();
+        using var output = Existing("abc");
+        await ResumeDownload(output, Resume("\"v1\"", 6), _ => Response("uvwxyz", 6, "\"v2\""), validators);
+        Assert.Equal("uvwxyz", System.Text.Encoding.UTF8.GetString(output.ToArray()));
+        Assert.Equal(("\"v2\"", (long?)6), validators.Last());
+    }
+
+    [Fact]
+    public async Task CompleteSavedDownload_SkipsNetwork()
+    {
+        using var output = Existing("abcdef");
+        await ResumeDownload(output, Resume("\"v1\"", 6), _ => throw new InvalidOperationException("network must not be used"));
+        Assert.Equal(6, output.Length);
+    }
+
+    [Fact]
+    public async Task OversizedSavedState_IsIgnored()
+    {
+        using var output = Existing("abc");
+        await ResumeDownload(output, Resume("\"v1\"", 1000), request =>
+        {
+            Assert.Null(request.Headers.Range);
+            return Response("abcdef", 6, "\"v1\"");
+        });
+        Assert.Equal(6, output.Length);
+    }
+
+    [Fact]
+    public async Task MismatchedResumeResponse_ClearsSavedValidator()
+    {
+        var calls = 0;
+        var validators = new List<(string?, long?)>();
+        using var output = Existing("abc");
+        await ResumeDownload(output, Resume("\"v1\"", 6), request =>
+        {
+            if (++calls == 1) return Response("XYZ", 3, "\"v2\"", 3, 6);
+            Assert.Null(request.Headers.Range);
+            return Response("uvwxyz", 6, "\"v2\"");
+        }, validators);
+        Assert.Equal(((string?)null, (long?)null), validators.First());
+        Assert.Equal("uvwxyz", System.Text.Encoding.UTF8.GetString(output.ToArray()));
+    }
+
+    [Fact]
     public void LegacySettings_DefaultToAutoRoute()
     {
         var settings = System.Text.Json.JsonSerializer.Deserialize<UserSettings>("{\"DownloadDirectory\":\"C:\\\\Packages\"}");
@@ -221,6 +284,21 @@ public sealed class PackageTransferTests
     private static Task Download(Stream output, Func<HttpRequestMessage, HttpResponseMessage> handler, long limit = 100) =>
         PackageTransferService.DownloadAsync(Url, output, limit, DownloadRoute.Direct, Progress, null, CancellationToken.None,
             _ => new HttpClient(new Handler(handler)));
+
+    private static MemoryStream Existing(string data)
+    {
+        var stream = new MemoryStream();
+        stream.Write(System.Text.Encoding.UTF8.GetBytes(data));
+        return stream;
+    }
+
+    private static PartialDownloadState Resume(string etag, long total) =>
+        new("package.msix", null, etag, total, DateTimeOffset.UtcNow);
+
+    private static Task ResumeDownload(Stream output, PartialDownloadState resume,
+        Func<HttpRequestMessage, HttpResponseMessage> handler, List<(string?, long?)>? validators = null) =>
+        PackageTransferService.DownloadAsync(Url, output, 100, DownloadRoute.Direct, Progress, null, CancellationToken.None,
+            _ => new HttpClient(new Handler(handler)), resume, (etag, total) => validators?.Add((etag, total)));
 
     private static HttpResponseMessage Response(string data, long length, string? etag, long? start = null, long? total = null)
     {

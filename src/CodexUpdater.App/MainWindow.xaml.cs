@@ -277,6 +277,7 @@ public partial class MainWindow : Window
                 var message = $"即将安装 Codex {plan.MainPackage.Identity.ApplicationVersion}。";
                 if (processes.Count > 0)
                     message += "\n\n检测到应用正在运行。请先保存工作，确认后将尝试关闭应用；8 秒后仍未退出的应用进程会被强制结束。";
+                message += await PackageInstallationService.DescribeBlockingServicesAsync(plan.MainPackage, cancellationToken);
                 if (System.Windows.MessageBox.Show(this, message, "确认安装", MessageBoxButton.YesNo,
                     MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
                 cancellationToken.ThrowIfCancellationRequested();
@@ -300,7 +301,9 @@ public partial class MainWindow : Window
             Progress.IsIndeterminate = false;
             Progress.Value = 100;
             await RefreshInstalledVersionAsync(CancellationToken.None);
-            SetStatus("安装完成。");
+            SetStatus(result.RecoveryWarning is null ? "安装完成。" : "安装完成，但后台服务尚未恢复。");
+            if (result.RecoveryWarning is not null)
+                ErrorDetailsWindow.ShowError(this, "安装完成，服务需要处理", result.RecoveryWarning, "安装完成，但后台服务尚未恢复。");
         });
     }
 

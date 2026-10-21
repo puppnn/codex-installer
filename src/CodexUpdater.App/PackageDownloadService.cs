@@ -231,7 +231,7 @@ internal static class PackageDownloadService
         return resourceId == "~" ? "" : resourceId;
     }
 
-    private static async Task<DownloadResult<T>> DownloadAndValidateAsync<T>(
+    internal static async Task<DownloadResult<T>> DownloadAndValidateAsync<T>(
         string fileName,
         string url,
         string downloadsDirectory,
@@ -241,7 +241,8 @@ internal static class PackageDownloadService
         CancellationToken cancellationToken,
         long byteLimit = MaxPackageBytes,
         DownloadRoute route = DownloadRoute.Auto,
-        IProgress<string>? status = null)
+        IProgress<string>? status = null,
+        Func<bool, HttpClient>? clientFactory = null)
     {
         if (!CodexPackage.IsTrustedDownloadUrl(url))
         {
@@ -258,6 +259,8 @@ internal static class PackageDownloadService
         if (maximumBytes <= 0) throw new InvalidOperationException("主包和依赖包已达到 4 GB 下载上限。");
         cancellationToken.ThrowIfCancellationRequested();
         Directory.CreateDirectory(downloadsDirectory);
+        PartialDownloadCache.Cleanup(downloadsDirectory, DateTimeOffset.UtcNow);
+        using var cache = PartialDownloadCache.Acquire(downloadsDirectory, fileName);
         var targetPath = Path.Combine(downloadsDirectory, fileName);
         var existing = await Task.Run(() =>
         {
@@ -273,34 +276,110 @@ internal static class PackageDownloadService
             return new DownloadResult<T>(targetPath, existing.Value, true);
         }
 
-        var tempPath = Path.Combine(
-            downloadsDirectory,
-            $".{Path.GetFileNameWithoutExtension(fileName)}.{Guid.NewGuid():N}.download{Path.GetExtension(fileName)}");
+        var partialPath = cache.PartialPath;
+        var statePath = cache.StatePath;
+        for (var pass = 0; ; pass++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            FileStream destination;
+            try
+            {
+                destination = new FileStream(partialPath, FileMode.OpenOrCreate, FileAccess.ReadWrite,
+                    FileShare.None, 128 * 1024, useAsync: true);
+            }
+            catch (IOException exception) when (exception.HResult == unchecked((int)0x80070020))
+            {
+                throw new InvalidOperationException("同一个安装包正在由另一个窗口下载，请等待其完成后再试。");
+            }
 
+            var keepPartial = false;
+            var resumed = false;
+            var stateSaved = false;
+            try
+            {
+                await using (destination)
+                {
+                    var resume = pass == 0
+                        ? PartialDownloadState.TryLoad(statePath, fileName, expectedPageHash, destination.Length, maximumBytes, DateTimeOffset.UtcNow)
+                        : null;
+                    if (resume is null)
+                    {
+                        destination.SetLength(0);
+                        TryDelete(statePath);
+                    }
+                    else
+                    {
+                        resumed = true;
+                        stateSaved = true;
+                        status?.Report($"发现上次未完成的下载（{destination.Length / 1048576d:F1} / {resume.TotalLength / 1048576d:F1} MiB），正在继续...");
+                    }
+                    await PackageTransferService.DownloadAsync(url, destination, maximumBytes, route, progress, status, cancellationToken,
+                        clientFactory: clientFactory,
+                        resume: resume,
+                        validatorChanged: (etag, total) => stateSaved = SaveOrClearPartialState(statePath, fileName, expectedPageHash, etag, total));
+                }
+                cancellationToken.ThrowIfCancellationRequested();
+                status?.Report("下载完成，正在验证文件完整性和数字签名...");
+                T validation;
+                using (var verificationLock = new FileStream(partialPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                {
+                    try
+                    {
+                        validation = await Task.Run(() =>
+                        {
+                            if (expectedPageHash is { Length: 40 or 64 } && expectedPageHash.All(Uri.IsHexDigit) &&
+                                !MatchesExpectedPageHash(partialPath, expectedPageHash))
+                                throw new InvalidDataException("安装包哈希与查询结果不一致，已停止安装，请重新检查更新。");
+                            return validator(partialPath);
+                        }, cancellationToken);
+                    }
+                    catch (Exception ex) when (resumed && pass == 0 && ex is InvalidDataException or InvalidOperationException)
+                    {
+                        status?.Report("续传文件未通过校验，正在重新完整下载...");
+                        continue;
+                    }
+                }
+                cancellationToken.ThrowIfCancellationRequested();
+                File.Move(partialPath, targetPath, overwrite: true);
+                progress.Report(100);
+                return new DownloadResult<T>(targetPath, validation, false);
+            }
+            catch (Exception exception)
+            {
+                // Network interruptions, timeouts, cancellation and closing the app keep the bytes for next time;
+                // anything that questions the data itself discards them.
+                if ((exception is HttpRequestException or TimeoutException or OperationCanceledException) && stateSaved && File.Exists(statePath))
+                {
+                    keepPartial = true;
+                    throw;
+                }
+                throw;
+            }
+            finally
+            {
+                if (!keepPartial)
+                {
+                    TryDelete(partialPath);
+                    TryDelete(statePath);
+                }
+            }
+        }
+    }
+
+    private static bool SaveOrClearPartialState(string statePath, string fileName, string? pageHash, string? etag, long? total)
+    {
         try
         {
-            await using (var destination = new FileStream(tempPath, FileMode.CreateNew, FileAccess.ReadWrite,
-                FileShare.None, 128 * 1024, useAsync: true))
-            {
-                await PackageTransferService.DownloadAsync(url, destination, maximumBytes, route, progress, status, cancellationToken);
-            }
-            cancellationToken.ThrowIfCancellationRequested();
-            status?.Report("下载完成，正在验证文件完整性和数字签名...");
-            var validation = await Task.Run(() =>
-            {
-                if (expectedPageHash is { Length: 40 or 64 } && expectedPageHash.All(Uri.IsHexDigit) &&
-                    !MatchesExpectedPageHash(tempPath, expectedPageHash))
-                    throw new InvalidDataException("安装包哈希与查询结果不一致，已停止安装，请重新检查更新。");
-                return validator(tempPath);
-            }, cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
-            File.Move(tempPath, targetPath, overwrite: true);
-            progress.Report(100);
-            return new DownloadResult<T>(targetPath, validation, false);
+            if (etag is not null && total is > 0)
+                new PartialDownloadState(fileName, pageHash, etag, total.Value, DateTimeOffset.UtcNow).Save(statePath);
+            else
+                File.Delete(statePath);
+            return etag is not null && total is > 0;
         }
-        finally
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            TryDelete(tempPath);
+            // Resuming after a restart is best effort; the current download continues without it.
+            return false;
         }
     }
 
@@ -400,7 +479,7 @@ internal static class PackageDownloadService
         }
     }
 
-    private sealed record DownloadResult<T>(
+    internal sealed record DownloadResult<T>(
         string FilePath,
         T Validation,
         bool ReusedExistingFile);

@@ -209,7 +209,8 @@ public partial class AdvancedStoreWindow : Window
 
         await PackageInstallationService.ValidateForInstallAsync(plan.MainPackage, cancellationToken);
         var license = _product.IsFree == false ? "\n此应用仍需要有效的 Microsoft Store 许可。" : "";
-        var message = $"即将安装：{_product.DisplayName}\n应用版本：{plan.MainPackage.Identity.ApplicationVersion}\n依赖：{plan.Dependencies.Count} 个{license}\n\n请保存工作并退出相关应用。";
+        var message = $"即将安装：{_product.DisplayName}\n应用版本：{plan.MainPackage.Identity.ApplicationVersion}\n依赖：{plan.Dependencies.Count} 个{license}\n\n请保存工作并退出相关应用。" +
+            await PackageInstallationService.DescribeBlockingServicesAsync(plan.MainPackage, cancellationToken);
         if (System.Windows.MessageBox.Show(this, message, "确认安装", MessageBoxButton.YesNo,
             MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
         cancellationToken.ThrowIfCancellationRequested();
@@ -230,7 +231,9 @@ public partial class AdvancedStoreWindow : Window
 
         Progress.IsIndeterminate = false;
         Progress.Value = 100;
-        SetStatus("安装完成。");
+        SetStatus(result.RecoveryWarning is null ? "安装完成。" : "安装完成，但后台服务尚未恢复。");
+        if (result.RecoveryWarning is not null)
+            ErrorDetailsWindow.ShowError(this, "安装完成，服务需要处理", result.RecoveryWarning, "安装完成，但后台服务尚未恢复。");
         await LoadInstalledPackagesAsync(CancellationToken.None);
         ApplyCandidateFilter();
     }

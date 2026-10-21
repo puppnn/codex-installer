@@ -132,7 +132,8 @@ public partial class LocalPackageWindow : Window
             await RefreshDependenciesAsync(token);
             if (!_canInstall || _mainPackage is null || _dependencies is null) return;
             var identity = _mainPackage.Identity;
-            var message = $"即将为当前 Windows 用户安装：\n{identity.Name}\n应用版本：{identity.ApplicationVersion}\n发布者：{identity.Publisher}\n\n文件：{_mainPackage.FilePath}\n\n请保存工作并退出要更新的应用。";
+            var message = $"即将为当前 Windows 用户安装：\n{identity.Name}\n应用版本：{identity.ApplicationVersion}\n发布者：{identity.Publisher}\n\n文件：{_mainPackage.FilePath}\n\n请保存工作并退出要更新的应用。" +
+                await PackageInstallationService.DescribeBlockingServicesAsync(_mainPackage, token);
             if (System.Windows.MessageBox.Show(this, message, "确认本地安装", MessageBoxButton.YesNo,
                 MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
             token.ThrowIfCancellationRequested();
@@ -150,7 +151,9 @@ public partial class LocalPackageWindow : Window
                 ErrorDetailsWindow.ShowError(this, "安装未完成", failure.Detail, failure.Summary);
                 return;
             }
-            StatusText.Text = "安装完成。";
+            StatusText.Text = result.RecoveryWarning is null ? "安装完成。" : "安装完成，但后台服务尚未恢复。";
+            if (result.RecoveryWarning is not null)
+                ErrorDetailsWindow.ShowError(this, "安装完成，服务需要处理", result.RecoveryWarning, "安装完成，但后台服务尚未恢复。");
             InstallButton.Content = "安装所选包";
         });
     }

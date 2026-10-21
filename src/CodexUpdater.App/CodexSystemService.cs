@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -186,6 +187,191 @@ internal static class CodexSystemService
         catch (TimeoutException)
         {
             // Windows deployment returns the package-in-use error if a process still holds files.
+        }
+    }
+
+    // Packaged services (for example Codex's sandbox service) run in session 0 and survive closing the app,
+    // so FindRunningCodexProcesses cannot see them, yet Windows refuses to update the package while they run.
+    public static async Task<IReadOnlyList<PackageServiceInfo>> FindPackageServicesAsync(
+        string? installLocation,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(installLocation)) return [];
+        var command =
+            "Get-CimInstance -ClassName Win32_Service | " +
+            $"Where-Object {{ $_.PathName -and $_.PathName.IndexOf('{EscapePowerShellLiteral(installLocation)}', [StringComparison]::OrdinalIgnoreCase) -ge 0 }} | " +
+            "Select-Object Name,DisplayName,State,PathName | ConvertTo-Json -Compress";
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(30));
+        ProcessRunResult result;
+        try
+        {
+            result = await PowerShellRunner.RunAsync(command, timeout.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException("读取应用后台服务超时，请稍后重试。");
+        }
+        if (!result.Succeeded)
+            throw new InvalidOperationException($"读取应用后台服务失败：{result.ErrorMessage.Trim()}");
+        if (string.IsNullOrWhiteSpace(result.StandardOutput)) return [];
+
+        using var document = JsonDocument.Parse(result.StandardOutput);
+        var root = document.RootElement;
+        var elements = root.ValueKind == JsonValueKind.Array
+            ? root.EnumerateArray().ToArray()
+            : root.ValueKind == JsonValueKind.Object
+                ? [root]
+                : [];
+        return elements
+            .Select(element => new PackageServiceInfo(
+                ReadJsonString(element.GetProperty("Name")),
+                ReadJsonString(element.GetProperty("DisplayName")),
+                ReadJsonString(element.GetProperty("State")),
+                ReadJsonString(element.GetProperty("PathName"))))
+            .Where(service => service.Name.Length > 0 && PackageServiceInfo.IsInsidePackage(service.PathName, installLocation))
+            .ToArray();
+    }
+
+    public static async Task<IReadOnlyList<DeploymentLogEntry>> ReadDeploymentLogAsync(
+        string activityId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Guid.TryParse(activityId, out var id)) throw new ArgumentException("ActivityId 格式无效。", nameof(activityId));
+        var command = $"Get-AppPackageLog -ActivityID '{id:D}' | Select-Object Id,Level,Message | ConvertTo-Json -Compress";
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(20));
+        ProcessRunResult result;
+        try
+        {
+            result = await PowerShellRunner.RunAsync(command, timeout.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException("读取部署日志超时。");
+        }
+        if (!result.Succeeded) throw new InvalidOperationException(result.ErrorMessage.Trim());
+        if (string.IsNullOrWhiteSpace(result.StandardOutput)) return [];
+
+        using var document = JsonDocument.Parse(result.StandardOutput);
+        var root = document.RootElement;
+        var elements = root.ValueKind == JsonValueKind.Array
+            ? root.EnumerateArray().ToArray()
+            : root.ValueKind == JsonValueKind.Object
+                ? [root]
+                : [];
+        return elements
+            .Select(element => new DeploymentLogEntry(
+                int.TryParse(ReadJsonString(element.GetProperty("Id")), out var eventId) ? eventId : 0,
+                int.TryParse(ReadJsonString(element.GetProperty("Level")), out var level) ? level : 0,
+                ReadJsonString(element.GetProperty("Message"))))
+            .ToArray();
+    }
+
+    public static Task StopServicesElevatedAsync(IReadOnlyList<PackageServiceInfo> services, CancellationToken cancellationToken = default) =>
+        RunServiceCommandElevatedAsync(services, stop: true, cancellationToken);
+
+    public static Task StartServicesElevatedAsync(IReadOnlyList<PackageServiceInfo> services, CancellationToken cancellationToken = default) =>
+        RunServiceCommandElevatedAsync(services, stop: false, cancellationToken);
+
+    internal static string BuildServiceScript(IReadOnlyList<PackageServiceInfo> services, bool stop)
+    {
+        if (services.Any(service => string.IsNullOrWhiteSpace(service.Name) || service.Name.IndexOfAny(['*', '?', '[', ']']) >= 0))
+            throw new InvalidOperationException("服务名必须为明确的单个服务，不能使用通配符。");
+        var records = string.Join(",", services.Select(service =>
+            $"@{{ Name='{EscapePowerShellLiteral(service.Name)}'; Path='{EscapePowerShellLiteral(service.PathName)}' }}"));
+        // sc.exe sends a single SCM request and refuses active dependents. It never recursively stops them.
+        var script = $$"""
+            $system = [Environment]::GetFolderPath([Environment+SpecialFolder]::System)
+            $env:PSModulePath = [IO.Path]::Combine($system, 'WindowsPowerShell', 'v1.0', 'Modules')
+            $sc = [IO.Path]::Combine($system, 'sc.exe')
+            $targets = @({{records}})
+            $stop = ${{stop.ToString().ToLowerInvariant()}}
+            foreach ($target in $targets) {
+                $entry = Get-CimInstance -ClassName Win32_Service -OperationTimeoutSec 10 |
+                    Where-Object { $_.Name -eq $target.Name }
+                if (-not $entry -or $entry.PathName -ne $target.Path) { exit 87 }
+                $service = Get-Service -Name $target.Name
+                if ($stop) {
+                    if ($service.Status -ne 'Running') { exit 1061 }
+                    if (@($service.DependentServices | Where-Object { $_.Status -ne 'Stopped' }).Count -gt 0) { exit 1051 }
+                }
+            }
+            foreach ($target in $targets) {
+                $service = Get-Service -Name $target.Name
+                if ($stop) {
+                    & $sc stop $target.Name | Out-Null
+                    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+                    $service.WaitForStatus([System.ServiceProcess.ServiceControllerStatus]::Stopped, [TimeSpan]::FromSeconds(20))
+                } else {
+                    if ($service.Status -eq 'StopPending') {
+                        $service.WaitForStatus([System.ServiceProcess.ServiceControllerStatus]::Stopped, [TimeSpan]::FromSeconds(20))
+                    }
+                    $service.Refresh()
+                    if ($service.Status -eq 'Stopped') {
+                        & $sc start $target.Name | Out-Null
+                        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+                    }
+                    $service.WaitForStatus([System.ServiceProcess.ServiceControllerStatus]::Running, [TimeSpan]::FromSeconds(20))
+                }
+            }
+            """;
+        return PowerShellRunner.BuildScript(script);
+    }
+
+    private static async Task RunServiceCommandElevatedAsync(
+        IReadOnlyList<PackageServiceInfo> services,
+        bool stop,
+        CancellationToken cancellationToken)
+    {
+        if (services.Count == 0) return;
+        cancellationToken.ThrowIfCancellationRequested();
+        var action = stop ? "停止" : "启动";
+        var script = BuildServiceScript(services, stop);
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe"),
+            UseShellExecute = true,
+            Verb = "runas",
+            WindowStyle = ProcessWindowStyle.Hidden,
+            WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.System),
+        };
+        foreach (var argument in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand",
+            Convert.ToBase64String(Encoding.Unicode.GetBytes(script)) })
+            startInfo.ArgumentList.Add(argument);
+
+        Process? process;
+        try
+        {
+            process = Process.Start(startInfo);
+        }
+        catch (Win32Exception exception) when (exception.NativeErrorCode == 1223)
+        {
+            throw new InvalidOperationException($"已取消管理员授权，无法{action}后台服务：{string.Join("、", services.Select(service => service.Label))}。");
+        }
+        if (process is null) throw new InvalidOperationException($"无法以管理员身份{action}后台服务。");
+        using (process)
+        {
+            _ = process.Handle;
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(60));
+            try
+            {
+                await process.WaitForExitAsync(timeout.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                // Do not start restoration while an elevated helper could still issue stop requests.
+                await process.WaitForExitAsync(CancellationToken.None);
+                cancellationToken.ThrowIfCancellationRequested();
+                throw new TimeoutException($"{action}后台服务超时：{string.Join("、", services.Select(service => service.Label))}。");
+            }
+            if (process.ExitCode == 1051)
+                throw new InvalidOperationException("目标应用服务存在其他活动依赖服务，已拒绝连带停止。请在服务管理器中核对依赖关系后重试。");
+            if (process.ExitCode == 87)
+                throw new InvalidOperationException("服务身份或路径在授权前后发生变化，已停止操作。");
+            if (process.ExitCode != 0)
+                throw new InvalidOperationException($"{action}后台服务失败（退出码 {process.ExitCode}）：{string.Join("、", services.Select(service => service.Label))}。");
         }
     }
 

@@ -14,13 +14,13 @@ Codex Installer is a Windows helper for downloading, installing, and updating th
 | 版本 | 获取方式 | 功能范围 |
 | --- | --- | --- |
 | 已发布稳定版 v1.2.1 | 上方 EXE 直链或 [Releases](https://github.com/puppnn/codex-installer/releases/tag/v1.2.1) | 下载线路选择、断流恢复、本地安装、自适应布局和错误诊断 |
-| 当前源码 v1.2.1 | [下载 main 源码](https://github.com/puppnn/codex-installer/archive/refs/heads/main.zip) 或 [GitHub Actions 构建产物](https://github.com/puppnn/codex-installer/actions/workflows/ci.yml) | 下载线路选择、断流恢复、本地安装、自适应布局和错误诊断 |
+| 当前源码 v1.2.2 | [下载 main 源码](https://github.com/puppnn/codex-installer/archive/refs/heads/main.zip) 或 [GitHub Actions 构建产物](https://github.com/puppnn/codex-installer/actions/workflows/ci.yml) | 新增跨重启续传、后台服务处理、部署日志及恢复保护 |
 
 v1.2.1 已正式发布，点击上方链接即可直接下载 EXE，无需登录 GitHub。Release 同时提供 SHA-256 校验文件，EXE 来自对应标签的 GitHub Actions 构建并具有构建来源证明。源码 ZIP 不包含编译好的 EXE，可按下方构建说明编译。需要测试后续开发版本时，可从 Actions 的成功构建中下载产物（需登录 GitHub）。
 
 发布和 CI 生成的自包含 EXE 面向 Windows x64，无需预装 .NET。安装器中的 `arm64` 选项选择的是目标应用包架构；安装器本身仍是 x64 程序。
 
-以下使用说明和截图对应 v1.2.1。截图中的版本号和路径仅作演示。
+界面截图沿用 v1.2.1，版本号和路径仅作演示。跨重启续传、后台服务处理和部署日志功能属于当前 v1.2.2 源码/CI 版，尚未发布正式 Release；上方稳定版 EXE 不包含这些新功能。
 
 ![Codex Installer v1.2.1 main window with download routes](docs/assets/app-main-v1.2.1.png)
 
@@ -56,7 +56,16 @@ v1.2.1 已正式发布，点击上方链接即可直接下载 EXE，无需登录
 - 直连通过本机 DNS 查询 IPv4 地址，为每个连接设置超时，不固定 CDN IP，也不关闭证书验证。
 - 下载中断后在当前操作内最多尝试 6 次连接。仅在服务器提供强 ETag、已知完整长度，且续传响应的 ETag、Content-Range 和长度一致时拼接已下载数据。
 - 服务器忽略 Range、文件标识变化或不支持可靠续传时从头下载；完整文件仍需通过页面哈希（如提供）、数字签名和包身份校验。
-- 取消、关闭程序或最终失败后清理临时文件；本版不承诺跨程序重启恢复未完成的下载。
+- v1.2.1 仅支持当前操作内续传，取消或关闭后清理半包。
+
+### 跨重启续传与服务恢复（v1.2.2 源码/CI 版）
+
+- 网络中断、超时、取消或关闭程序后保留有有效续传记录的半包，存放在下载目录的 `.codex-installer-partials` 专属缓存目录。再次下载同一安装包时，核对文件名、页面哈希、强 ETag、长度及七天有效期后续传。
+- 同一文件的锁覆盖下载、校验、移动和清理全过程。已完成但尚未校验的半包会直接验证；续传结果校验失败最多完整重下一次。
+- 自动清理只处理专属目录内有合法记录且过期的缓存，跳过正在使用的文件；不会扫描或删除下载目录中其他工具的 `.partial.*` 文件。Claude 早期测试版留在下载根目录的半包不自动迁移或删除。
+- 安装确认框会列出目标应用正在运行的服务。仅服务操作申请 UAC，实际应用安装仍属于当前 Windows 用户。若存在其他活动依赖服务，拒绝连带停止。
+- 部分停止失败、取消、安装失败或抛出异常时，都会检查并尝试恢复原先运行的服务；提权子进程退出后才进入恢复，避免停止和恢复同时执行。恢复失败会显示具体警告，不再静默报告全部成功。
+- 安装失败时按 ActivityId 自动附加 Windows 部署日志；日志读取失败会显示手动查询方式。
 
 主界面会随窗口尺寸调整：窄窗口纵向排列，宽窗口将版本信息和下载设置分成双栏，并重排操作按钮。拉高窗口可以查看更多操作记录；窗口过矮时信息区可滚动，底部操作按钮保持可见。操作记录仅保存在当前会话内。
 
@@ -123,13 +132,13 @@ v1.2.1 已正式发布，点击上方链接即可直接下载 EXE，无需登录
 Add-AppxPackage -Path "主安装包路径" -DependencyPath @("依赖包路径")
 ```
 
-程序使用系统 PowerShell 的绝对路径和编码命令，不整体请求管理员权限。下载有单文件大小限制、总量限制、读取超时和取消清理；临时链接失效时会重新查询一次。
+程序使用系统 PowerShell 的绝对路径和编码命令，不整体请求管理员权限。v1.2.2 仅为目标应用的服务控制请求 UAC。下载有单文件大小限制、总量限制、读取超时和受验证的缓存恢复；临时链接失效时会重新查询一次。
 
 ## 常见问题 / Troubleshooting
 
 | 提示 | 含义与处理 |
 | --- | --- |
-| `0x80073D02` | 应用仍在运行或文件被占用。保存工作并退出相关应用后重试。 |
+| `0x80073D02` | 应用或其后台服务仍在运行。v1.2.2 会列出目标服务并在确认后请求管理员授权临时停止，随后尝试恢复；不能恢复时明确警告。错误详情可附上 `Get-AppPackageLog` 中的关键记录。 |
 | `0x80070490` | Windows 包存储库注册时找不到元素。先重启后重试；若持续失败，根据错误详情排查系统状态。程序不会自动重置注册信息。 |
 | `0x80073CF3` | 依赖或兼容性检查失败。核对错误详情中的依赖、架构及系统要求。 |
 | `0x80073D06` | 本机已有更高版本。选择相同或更新的安装包。 |
@@ -140,12 +149,16 @@ Add-AppxPackage -Path "主安装包路径" -DependencyPath @("依赖包路径")
 
 ## 更新说明 / What's New
 
+### v1.2.2 服务与续传保护（源码/CI）
+
+保留 Claude 增加的后台服务处理、ActivityId 部署日志和跨重启续传，修复服务恢复异常路径、强制连带停止、缓存误删、并发操作以及损坏元数据处理。详见 [v1.2.2 说明](docs/releases/v1.2.2.md)。
+
 ### v1.2.1 下载优化
 
 - 新增自动、IPv4 直连和系统代理三种下载线路，设置仅作用于安装器。
 - 处理响应提前结束、网络断流和读取超时，在当前操作中有限重试。
 - 使用强 ETag、完整长度和 Content-Range 验证续传响应；校验不一致时重新下载。
-- 完整文件继续进行哈希、数字签名及身份校验，取消或最终失败后清理临时文件。
+- 完整文件继续进行哈希、数字签名及身份校验，v1.2.1 的取消和关闭操作会清理临时文件。
 
 Version 1.2.1 adds installer-only route selection and bounded recovery for interrupted downloads. Partial bytes are resumed only with matching server validators and ranges. No Clash, system proxy, or system DNS configuration is changed. See [v1.2.1 notes](docs/releases/v1.2.1.md).
 

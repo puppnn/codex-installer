@@ -7,9 +7,15 @@ public sealed record InstallationFailure(string Summary, string Detail, bool IsP
         var detail = PowerShellOutputFormatter.Clean(output);
         var summary = "安装未完成，请查看详细错误信息。";
         var inUse = detail.Contains("0x80073D02", StringComparison.OrdinalIgnoreCase);
-        if (inUse)
+        if (inUse && DeploymentLog.ReportsActiveService(detail))
         {
-            summary = "应用仍在运行，Windows 无法替换占用的文件（0x80073D02）。请保存工作并退出相关应用后重试。";
+            summary = "Windows 部署日志显示：应用的后台服务仍在运行，更新被中止（0x80073D02）。关闭窗口不会停止后台服务，" +
+                "请重试并在提示时允许管理员授权停止服务。";
+        }
+        else if (inUse)
+        {
+            summary = "应用仍在运行，Windows 无法替换占用的文件（0x80073D02）。请保存工作并退出相关应用后重试；" +
+                "若已关闭窗口仍失败，通常是应用的后台服务仍在运行，请在重试时允许管理员授权停止服务。";
         }
         else if (detail.Contains("0x80070490", StringComparison.OrdinalIgnoreCase))
         {

@@ -97,6 +97,7 @@ internal static class PowerShellRunner
 
 internal sealed record ProcessRunResult(int ExitCode, string StandardOutput, string StandardError)
 {
+    public string? RecoveryWarning { get; init; }
     public bool Succeeded => ExitCode == 0;
 
     public string ErrorMessage => string.IsNullOrWhiteSpace(StandardError)

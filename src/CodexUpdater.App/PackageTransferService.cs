@@ -2,6 +2,7 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using CodexUpdater.Core;
 
 namespace CodexUpdater.App;
 
@@ -23,7 +24,9 @@ internal static class PackageTransferService
     public static async Task DownloadAsync(
         string url, Stream destination, long maximumBytes, DownloadRoute route,
         IProgress<double> progress, IProgress<string>? status, CancellationToken cancellationToken,
-        Func<bool, HttpClient>? clientFactory = null)
+        Func<bool, HttpClient>? clientFactory = null,
+        PartialDownloadState? resume = null,
+        Action<string?, long?>? validatorChanged = null)
     {
         clientFactory ??= DownloadConnection.Create;
         var endpoints = Endpoints(url, route);
@@ -33,6 +36,23 @@ internal static class PackageTransferService
         var token = deadline.Token;
         string? etag = null;
         long? total = null;
+        void SetValidator(string? newTag, long? newTotal)
+        {
+            etag = newTag;
+            total = newTotal;
+            validatorChanged?.Invoke(etag, total);
+        }
+        // Bytes kept from an earlier run continue only under the saved strong validator.
+        if (resume is not null && destination.Length > 0 && destination.Length <= resume.TotalLength && resume.TotalLength <= maximumBytes)
+        {
+            etag = resume.ETag;
+            total = resume.TotalLength;
+            if (destination.Length == total)
+            {
+                progress.Report(99);
+                return;
+            }
+        }
         var endpointIndex = 0;
         var interruptedOnEndpoint = false;
         Exception? lastError = null;
@@ -67,7 +87,7 @@ internal static class PackageTransferService
                         });
                     if (response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable && offset > 0)
                     {
-                        etag = null; total = null;
+                        SetValidator(null, null);
                         continue;
                     }
                     response.EnsureSuccessStatusCode();
@@ -81,7 +101,7 @@ internal static class PackageTransferService
                             range.Length != total || range.To != total - 1 || responseTag != etag ||
                             (response.Content.Headers.ContentLength is { } length && length != total - offset))
                         {
-                            etag = null; total = null;
+                            SetValidator(null, null);
                             status?.Report("续传响应的文件标识或范围不一致，将重新下载。");
                             continue;
                         }
@@ -90,8 +110,7 @@ internal static class PackageTransferService
                     {
                         offset = 0;
                         destination.SetLength(0); destination.Position = 0;
-                        total = response.Content.Headers.ContentLength;
-                        etag = responseTag;
+                        SetValidator(responseTag, response.Content.Headers.ContentLength);
                     }
                     else throw new InvalidDataException("服务器没有返回可下载的完整文件或分段数据。");
                     if (total > maximumBytes) throw new InvalidDataException("安装包超过单文件或本次安装计划的剩余大小上限。");
