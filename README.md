@@ -13,14 +13,14 @@ Codex Installer is a Windows helper for downloading, installing, and updating th
 
 | 版本 | 获取方式 | 功能范围 |
 | --- | --- | --- |
-| 已发布稳定版 v1.1.0 | 上方 EXE 直链或 [Releases](https://github.com/puppnn/codex-installer/releases/latest) | Codex 下载更新、Microsoft Store 高级模式 |
+| 已发布稳定版 v1.2.1 | 上方 EXE 直链或 [Releases](https://github.com/puppnn/codex-installer/releases/tag/v1.2.1) | 下载线路选择、断流恢复、本地安装、自适应布局和错误诊断 |
 | 当前源码 v1.2.1 | [下载 main 源码](https://github.com/puppnn/codex-installer/archive/refs/heads/main.zip) 或 [GitHub Actions 构建产物](https://github.com/puppnn/codex-installer/actions/workflows/ci.yml) | 下载线路选择、断流恢复、本地安装、自适应布局和错误诊断 |
 
-v1.2.1 尚未创建正式 Release。要直接体验本次更新，可在 Actions 中选择 **main 分支最新成功构建**，下载 Artifacts 中的 `CodexInstaller-win-x64`，解压后运行 EXE；下载 Actions 产物需要登录 GitHub。源码 ZIP 不包含编译好的 EXE，可按下方构建说明编译。
+v1.2.1 已正式发布，点击上方链接即可直接下载 EXE，无需登录 GitHub。Release 同时提供 SHA-256 校验文件，EXE 来自对应标签的 GitHub Actions 构建并具有构建来源证明。源码 ZIP 不包含编译好的 EXE，可按下方构建说明编译。需要测试后续开发版本时，可从 Actions 的成功构建中下载产物（需登录 GitHub）。
 
 发布和 CI 生成的自包含 EXE 面向 Windows x64，无需预装 .NET。安装器中的 `arm64` 选项选择的是目标应用包架构；安装器本身仍是 x64 程序。
 
-以下使用说明和截图对应当前源码/CI 版。截图中的版本号和路径仅作演示。
+以下使用说明和截图对应 v1.2.1。截图中的版本号和路径仅作演示。
 
 ![Codex Installer v1.2.1 main window with download routes](docs/assets/app-main-v1.2.1.png)
 
@@ -46,9 +46,9 @@ v1.2.1 尚未创建正式 Release。要直接体验本次更新，可在 Actions
 
 点击下载位置右侧的**文件夹按钮**即可打开下载目录。查询和下载可以取消；Windows 开始安装后会等待安装结果。
 
-### 下载线路（v1.2.1 源码）
+### 下载线路（v1.2.1）
 
-这些下载优化包含在 v1.2.1 源码及对应的成功 CI 构建中；旧 Release 和历史构建产物不包含它们。
+这些下载优化包含在 v1.2.1 正式版中；v1.1.0 及更早版本不包含它们。
 
 主界面和高级窗口均可选择“自动（直连优先）”“仅 IPv4 直连”“系统代理”。该选项仅作用于安装包传输；网页查询仍使用原有网络设置，不修改 Clash、系统代理或系统 DNS。
 
@@ -138,7 +138,7 @@ Add-AppxPackage -Path "主安装包路径" -DependencyPath @("依赖包路径")
 
 错误窗口提供中文摘要、可滚动详情和 `复制错误详情`。PowerShell 的 CLIXML 进度数据会被过滤，不再铺满整个弹窗。
 
-## v1.2.0 更新 / What's New
+## 更新说明 / What's New
 
 ### v1.2.1 下载优化
 
@@ -162,7 +162,7 @@ Version 1.2.1 adds installer-only route selection and bounded recovery for inter
 - 固定 WebView2 引导程序文件 URL；构建与运行时共享哈希清单。
 - CI 分离编译、测试与发布步骤，原生命令失败立即停止。
 
-Version 1.2 source adds responsive layouts, folder shortcuts, verified local-package installation, readable deployment errors, and shared installation checks. The existing v1.1.0 release remains available while v1.2 builds are provided through GitHub Actions.
+Version 1.2.1 includes responsive layouts, folder shortcuts, verified local-package installation, readable deployment errors, and shared installation checks. Download the official project release above; earlier releases remain available for reference.
 
 详细变更见 [v1.2.0 说明](docs/releases/v1.2.0.md)。上一版本的高级 Store 功能及安全改动见 [v1.1.0 说明](docs/releases/v1.1.0.md)。
 
