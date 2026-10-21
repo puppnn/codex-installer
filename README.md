@@ -13,14 +13,14 @@ Codex Installer is a Windows helper for downloading, installing, and updating th
 
 | 版本 | 获取方式 | 功能范围 |
 | --- | --- | --- |
-| 已发布稳定版 v1.2.1 | 上方 EXE 直链或 [Releases](https://github.com/puppnn/codex-installer/releases/tag/v1.2.1) | 下载线路选择、断流恢复、本地安装、自适应布局和错误诊断 |
-| 当前源码 v1.2.2 | [下载 main 源码](https://github.com/puppnn/codex-installer/archive/refs/heads/main.zip) 或 [GitHub Actions 构建产物](https://github.com/puppnn/codex-installer/actions/workflows/ci.yml) | 新增跨重启续传、后台服务处理、部署日志及恢复保护 |
+| 已发布稳定版 v1.2.2 | 上方 EXE 直链或 [Releases](https://github.com/puppnn/codex-installer/releases/tag/v1.2.2) | 跨重启续传、后台服务处理、部署日志及恢复保护 |
+| 开发源码 | [下载 main 源码](https://github.com/puppnn/codex-installer/archive/refs/heads/main.zip) 或 [GitHub Actions 构建产物](https://github.com/puppnn/codex-installer/actions/workflows/ci.yml) | 后续开发与自动构建 |
 
-v1.2.1 已正式发布，点击上方链接即可直接下载 EXE，无需登录 GitHub。Release 同时提供 SHA-256 校验文件，EXE 来自对应标签的 GitHub Actions 构建并具有构建来源证明。源码 ZIP 不包含编译好的 EXE，可按下方构建说明编译。需要测试后续开发版本时，可从 Actions 的成功构建中下载产物（需登录 GitHub）。
+v1.2.2 已正式发布，点击上方链接即可直接下载 EXE，无需登录 GitHub。Release 同时提供 SHA-256 校验文件，EXE 来自对应标签的 GitHub Actions 构建并具有构建来源证明。源码 ZIP 不包含编译好的 EXE，可按下方构建说明编译。需要测试后续开发版本时，可从 Actions 的成功构建中下载产物（需登录 GitHub）。
 
 发布和 CI 生成的自包含 EXE 面向 Windows x64，无需预装 .NET。安装器中的 `arm64` 选项选择的是目标应用包架构；安装器本身仍是 x64 程序。
 
-界面截图沿用 v1.2.1，版本号和路径仅作演示。跨重启续传、后台服务处理和部署日志功能属于当前 v1.2.2 源码/CI 版，尚未发布正式 Release；上方稳定版 EXE 不包含这些新功能。
+界面截图沿用 v1.2.1，版本号和路径仅作演示。v1.2.2 已包含跨重启续传、后台服务处理和部署日志功能。
 
 ![Codex Installer v1.2.1 main window with download routes](docs/assets/app-main-v1.2.1.png)
 
@@ -58,7 +58,7 @@ v1.2.1 已正式发布，点击上方链接即可直接下载 EXE，无需登录
 - 服务器忽略 Range、文件标识变化或不支持可靠续传时从头下载；完整文件仍需通过页面哈希（如提供）、数字签名和包身份校验。
 - v1.2.1 仅支持当前操作内续传，取消或关闭后清理半包。
 
-### 跨重启续传与服务恢复（v1.2.2 源码/CI 版）
+### 跨重启续传与服务恢复（v1.2.2）
 
 - 网络中断、超时、取消或关闭程序后保留有有效续传记录的半包，存放在下载目录的 `.codex-installer-partials` 专属缓存目录。再次下载同一安装包时，核对文件名、页面哈希、强 ETag、长度及七天有效期后续传。
 - 同一文件的锁覆盖下载、校验、移动和清理全过程。已完成但尚未校验的半包会直接验证；续传结果校验失败最多完整重下一次。
@@ -149,7 +149,7 @@ Add-AppxPackage -Path "主安装包路径" -DependencyPath @("依赖包路径")
 
 ## 更新说明 / What's New
 
-### v1.2.2 服务与续传保护（源码/CI）
+### v1.2.2 服务与续传保护
 
 保留 Claude 增加的后台服务处理、ActivityId 部署日志和跨重启续传，修复服务恢复异常路径、强制连带停止、缓存误删、并发操作以及损坏元数据处理。详见 [v1.2.2 说明](docs/releases/v1.2.2.md)。
 

@@ -41,6 +41,10 @@ jobs:
         shell: pwsh
         run: .\build-full.ps1 -SkipValidation
 
+      - name: Verify single-file startup
+        shell: pwsh
+        run: .\build-support\Test-SingleFileStartup.ps1 -ExecutablePath .\dist\CodexInstaller-win-x64.exe
+
       - name: Upload release executable
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
